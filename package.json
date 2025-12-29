@@ -1,5 +1,5 @@
 {
-  "name": "project-plany-app",
+  "name": "plany",
   "version": "1.0.0",
   "description": "A comprehensive lesson planning app with Firebase integration",
   "main": "index.js",

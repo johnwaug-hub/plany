@@ -1,6 +1,6 @@
-# Project Plany Deployment Guide
+# PLANY Deployment Guide
 
-This guide will help you deploy Project Plany to Firebase Hosting with Firestore integration.
+This guide will help you deploy PLANY to Firebase Hosting with Firestore integration.
 
 ## Prerequisites
 
@@ -42,7 +42,7 @@ npm install
 1. In Firebase Console, go to **Project Settings** (gear icon)
 2. Scroll to "Your apps" section
 3. Click the **Web** icon (`</>`)
-4. Register your app with a nickname (e.g., "Project Plany Web")
+4. Register your app with a nickname (e.g., "PLANY Web")
 5. Copy the configuration object
 
 ### 4. Configure Environment Variables
@@ -234,4 +234,4 @@ For issues:
 
 ---
 
-Happy teaching with Project Plany! 📚✨
+Happy teaching with PLANY! 📚✨

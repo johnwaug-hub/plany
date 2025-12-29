@@ -1,6 +1,6 @@
-# Project Plany Quick Start Guide
+# PLANY Quick Start Guide
 
-Get up and running with Project Plany in 5 minutes!
+Get up and running with PLANY in 5 minutes!
 
 ## 🚀 Quick Setup
 
@@ -172,4 +172,4 @@ npm install
 
 ---
 
-Happy teaching with Project Plany! ✨
+Happy teaching with PLANY! ✨

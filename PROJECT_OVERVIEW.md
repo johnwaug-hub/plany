@@ -1,4 +1,4 @@
-# Project Plany - Complete Project Overview
+# PLANY - Complete Project Overview
 
 ## 📁 Repository Structure
 

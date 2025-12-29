@@ -1,4 +1,4 @@
-# Project Plany - Lesson Planning App
+# PLANY - Lesson Planning App
 
 A comprehensive lesson planning application with Firebase/Firestore integration for teachers to manage their lessons, schedules, and school year planning.
 

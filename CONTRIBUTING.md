@@ -1,6 +1,6 @@
-# Contributing to Project Plany
+# Contributing to PLANY
 
-Thank you for your interest in contributing to Project Plany! This document provides guidelines for contributing to the project.
+Thank you for your interest in contributing to PLANY! This document provides guidelines for contributing to the project.
 
 ## Code of Conduct
 
