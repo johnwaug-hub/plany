@@ -109,9 +109,10 @@
         <div id="weekly" class="content-section">
             <div class="card">
                 <div class="card-header">
-                    <h2 class="card-title">Weekly Schedule</h2>
-                    <button class="btn btn-primary" onclick="app.showAddLessonModal()">+ Add Class Session</button>
+                    <h2 class="card-title">Recurring Weekly Schedule</h2>
+                    <button class="btn btn-primary" onclick="app.showAddRecurringClassModal()">+ Add Recurring Class</button>
                 </div>
+                <p style="color: var(--soft-gray); margin-bottom: 1.5rem;">Set up your recurring weekly class schedule. These sessions will appear on your calendar where you can add specific lesson plans.</p>
                 <div class="week-schedule" id="weekSchedule"></div>
             </div>
         </div>
@@ -128,11 +129,11 @@
                     </div>
                     <div class="stat-card">
                         <div class="stat-number" id="lessonsCount">0</div>
-                        <div class="stat-label">Lessons Planned</div>
+                        <div class="stat-label">Lesson Plans</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-number" id="templatesCount">3</div>
-                        <div class="stat-label">Templates Created</div>
+                        <div class="stat-number" id="templatesCount">0</div>
+                        <div class="stat-label">Recurring Classes</div>
                     </div>
                 </div>
             </div>
@@ -288,20 +289,22 @@
         </div>
     </div>
 
-    <!-- Add to Schedule Modal -->
-    <div id="addLessonModal" class="modal">
+    <!-- Add Recurring Class Modal -->
+    <div id="addRecurringClassModal" class="modal">
         <div class="modal-content">
-            <h2 class="modal-header">Add Lesson to Schedule</h2>
+            <h2 class="modal-header">Add Recurring Class</h2>
             <div class="form-group">
-                <label>Select Lesson</label>
-                <select id="scheduleLesson">
-                    <option value="">Choose a lesson...</option>
-                </select>
+                <label>Class Name</label>
+                <input type="text" id="recurringClassName" placeholder="e.g., Biology 101, Math Period 3">
+            </div>
+            <div class="form-group">
+                <label>Subject</label>
+                <input type="text" id="recurringClassSubject" placeholder="e.g., Biology, Mathematics">
             </div>
             <div class="grid-2">
                 <div class="form-group">
                     <label>Day of Week</label>
-                    <select id="scheduleDay">
+                    <select id="recurringDay">
                         <option value="0">Monday</option>
                         <option value="1">Tuesday</option>
                         <option value="2">Wednesday</option>
@@ -310,23 +313,62 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Time Slot</label>
-                    <select id="scheduleTime">
-                        <option value="0">8:00 AM</option>
-                        <option value="1">9:00 AM</option>
-                        <option value="2">10:00 AM</option>
-                        <option value="3">11:00 AM</option>
-                        <option value="4">1:00 PM</option>
-                        <option value="5">2:00 PM</option>
-                    </select>
+                    <label>Time</label>
+                    <input type="time" id="recurringTime" value="08:00">
                 </div>
             </div>
+            <div class="form-group">
+                <label>Duration (minutes)</label>
+                <input type="number" id="recurringDuration" value="45" min="15" max="180">
+            </div>
+            <div class="form-group">
+                <label>Room/Location (optional)</label>
+                <input type="text" id="recurringLocation" placeholder="e.g., Room 305, Science Lab">
+            </div>
             <div class="btn-group">
-                <button class="btn btn-primary" onclick="app.addToSchedule()">Add to Schedule</button>
-                <button class="btn btn-outline" onclick="app.closeModal('addLessonModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="app.saveRecurringClass()">Add to Schedule</button>
+                <button class="btn btn-outline" onclick="app.closeModal('addRecurringClassModal')">Cancel</button>
             </div>
         </div>
     </div>
+
+    <!-- Add Lesson Plan to Class Modal -->
+    <div id="addLessonToClassModal" class="modal">
+        <div class="modal-content">
+            <h2 class="modal-header" id="lessonModalTitle">Add Lesson Plan</h2>
+            <p id="lessonModalDescription" style="color: var(--soft-gray); margin-bottom: 1.5rem;"></p>
+            
+            <div class="form-group">
+                <label>Lesson Title</label>
+                <input type="text" id="dailyLessonTitle" placeholder="e.g., Introduction to Photosynthesis">
+            </div>
+            <div class="form-group">
+                <label>Learning Objectives</label>
+                <textarea id="dailyLessonObjectives" placeholder="What will students learn today?"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Materials Needed</label>
+                <textarea id="dailyLessonMaterials" placeholder="List required materials..."></textarea>
+            </div>
+            <div class="form-group">
+                <label>Activities & Lesson Flow</label>
+                <textarea id="dailyLessonActivities" placeholder="Describe the lesson activities..."></textarea>
+            </div>
+            <div class="form-group">
+                <label>Homework/Assessment (optional)</label>
+                <textarea id="dailyLessonHomework" placeholder="Any homework or assessment for this lesson..."></textarea>
+            </div>
+            <div class="form-group">
+                <label>Notes</label>
+                <textarea id="dailyLessonNotes" placeholder="Additional notes..."></textarea>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-primary" onclick="app.saveLessonPlan()">Save Lesson Plan</button>
+                <button class="btn btn-outline" onclick="app.closeModal('addLessonToClassModal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
 
     <script type="module" src="/src/main.js"></script>
 </body>

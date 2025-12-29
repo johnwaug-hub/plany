@@ -5,11 +5,12 @@ import './styles.css';
 class ProjectPlanyApp {
   constructor() {
     this.currentDate = new Date();
-    this.lessons = [];
+    this.recurringClasses = []; // Teacher's recurring weekly schedule
+    this.lessonPlans = [];      // Specific lesson plans for specific dates
     this.templates = [];
-    this.weeklySchedule = Array(6).fill(null).map(() => Array(5).fill(null));
     this.breaks = [];
     this.editingLessonId = null;
+    this.selectedClassSession = null; // For adding lesson plans to a session
     this.isLoading = false;
   }
 
@@ -147,12 +148,12 @@ class ProjectPlanyApp {
     this.showLoading(true);
     try {
       await Promise.all([
-        this.loadLessons(),
+        this.loadLessonPlans(),
+        this.loadRecurringClasses(),
         this.loadTemplates(),
-        this.loadSchedule(),
         this.loadBreaks()
       ]);
-      this.renderCalendar();
+      this.renderCalendarView();
       this.updateStats();
     } catch (error) {
       console.error('Error loading data:', error);
@@ -296,25 +297,38 @@ class ProjectPlanyApp {
       dayEl.className = 'calendar-day';
       
       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      const dayLessons = this.lessons.filter(l => l.date === dateStr);
+      const sessions = this.getSessionsForDate(dateStr);
+      const plansCount = sessions.filter(s => s.lessonPlan).length;
+      const totalSessions = sessions.length;
       
-      if (dayLessons.length > 0) {
-        dayEl.classList.add('has-lesson');
+      if (totalSessions > 0) {
+        dayEl.classList.add('has-sessions');
+        if (plansCount === totalSessions) {
+          dayEl.classList.add('all-planned');
+        }
       }
       
       dayEl.innerHTML = `
         <div class="day-number">${day}</div>
-        ${dayLessons.length > 0 ? `<div class="lesson-indicator">${dayLessons.length} lesson(s)</div>` : ''}
+        ${totalSessions > 0 ? `<div class="session-indicator">${plansCount}/${totalSessions} planned</div>` : ''}
       `;
       
       dayEl.onclick = () => {
-        if (dayLessons.length > 0) {
-          alert(`Lessons on ${dateStr}:\n${dayLessons.map(l => `• ${l.title}`).join('\n')}`);
-        }
+        this.showDaySessions(dateStr, sessions);
       };
       
       grid.appendChild(dayEl);
     }
+  }
+
+  showDaySessions(dateStr, sessions) {
+    if (sessions.length === 0) {
+      return;
+    }
+    
+    // Switch to day view and show the sessions
+    this.currentDate = new Date(dateStr);
+    this.setCalendarView('day');
   }
 
   renderWeekView() {
@@ -342,24 +356,32 @@ class ProjectPlanyApp {
       const day = new Date(weekStart);
       day.setDate(day.getDate() + i);
       const dateStr = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
-      const dayLessons = this.lessons.filter(l => l.date === dateStr);
+      const sessions = this.getSessionsForDate(dateStr);
       const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
       
+      const plannedCount = sessions.filter(s => s.lessonPlan).length;
+      const totalCount = sessions.length;
+      
       html += `
-        <div class="week-day-card ${dayLessons.length > 0 ? 'has-lessons' : ''}">
+        <div class="week-day-card ${totalCount > 0 ? 'has-sessions' : ''} ${plannedCount === totalCount && totalCount > 0 ? 'all-planned' : ''}" onclick="app.showDaySessions('${dateStr}', ${JSON.stringify(sessions).replace(/"/g, '&quot;')})">
           <div class="week-day-header">
             <div class="week-day-name">${dayNames[day.getDay()]}</div>
             <div class="week-day-date">${monthNames[day.getMonth()]} ${day.getDate()}</div>
           </div>
-          <div class="week-day-lessons">
-            ${dayLessons.length === 0 ? '<div class="no-lessons">No classes scheduled</div>' : 
-              dayLessons.map(l => `
-                <div class="week-lesson-item">
-                  <div class="week-lesson-title">${l.title}</div>
-                  <div class="week-lesson-subject">${l.subject}</div>
+          <div class="week-day-sessions">
+            ${totalCount === 0 ? '<div class="no-sessions">No classes</div>' : 
+              sessions.map(s => `
+                <div class="week-session-item ${s.lessonPlan ? 'planned' : 'unplanned'}">
+                  <div class="week-session-name">${s.recurringClass.name}</div>
+                  <div class="week-session-status">${s.lessonPlan ? '✓' : '○'} ${s.recurringClass.time}</div>
                 </div>
               `).join('')}
           </div>
+          ${totalCount > 0 ? `
+            <div class="week-day-summary">
+              ${plannedCount}/${totalCount} planned
+            </div>
+          ` : ''}
         </div>
       `;
     }
@@ -384,7 +406,7 @@ class ProjectPlanyApp {
       `${dayNames[day.getDay()]}, ${monthNames[day.getMonth()]} ${day.getDate()}, ${day.getFullYear()}`;
     
     const dateStr = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
-    const dayLessons = this.lessons.filter(l => l.date === dateStr);
+    const sessions = this.getSessionsForDate(dateStr);
     
     let html = `
       <div class="day-view-container">
@@ -392,34 +414,83 @@ class ProjectPlanyApp {
           <h3>${dayNames[day.getDay()]}</h3>
           <p>${monthNames[day.getMonth()]} ${day.getDate()}, ${day.getFullYear()}</p>
         </div>
-        <div class="day-view-lessons">
+        <div class="day-view-sessions">
     `;
     
-    if (dayLessons.length === 0) {
-      html += '<div class="no-lessons-message">No classes scheduled for this day</div>';
+    if (sessions.length === 0) {
+      html += '<div class="no-sessions-message">No classes scheduled for this day. <a href="#" onclick="app.showSection(\'weekly\'); return false;">Set up your weekly schedule</a></div>';
     } else {
-      dayLessons.forEach(lesson => {
+      sessions.forEach(session => {
+        const { recurringClass, lessonPlan } = session;
+        
         html += `
-          <div class="day-lesson-card">
-            <div class="day-lesson-header">
-              <h4>${lesson.title}</h4>
-              <span class="day-lesson-tag">${lesson.subject}</span>
-            </div>
-            <div class="day-lesson-details">
-              <div class="day-lesson-meta">
-                <span>⏱️ ${lesson.duration} minutes</span>
+          <div class="session-card ${lessonPlan ? 'has-plan' : 'needs-plan'}">
+            <div class="session-header">
+              <div class="session-info">
+                <h4>${recurringClass.name}</h4>
+                <div class="session-meta">
+                  <span>📚 ${recurringClass.subject}</span>
+                  <span>🕐 ${recurringClass.time}</span>
+                  <span>⏱️ ${recurringClass.duration} min</span>
+                  ${recurringClass.location ? `<span>📍 ${recurringClass.location}</span>` : ''}
+                </div>
               </div>
-              ${lesson.objectives ? `<div class="day-lesson-section"><strong>Objectives:</strong> ${lesson.objectives}</div>` : ''}
-              ${lesson.materials ? `<div class="day-lesson-section"><strong>Materials:</strong> ${lesson.materials}</div>` : ''}
-              ${lesson.activities ? `<div class="day-lesson-section"><strong>Activities:</strong> ${lesson.activities}</div>` : ''}
+              <span class="session-tag ${lessonPlan ? 'planned' : 'unplanned'}">${lessonPlan ? '✓ Planned' : 'Not Planned'}</span>
             </div>
-            <div class="day-lesson-actions">
-              <button class="icon-btn" onclick="app.editLesson('${lesson.id}')" title="Edit">✏️</button>
-              <button class="icon-btn" onclick="app.copyLesson('${lesson.id}')" title="Duplicate">📋</button>
-              <button class="icon-btn" onclick="app.deleteLesson('${lesson.id}')" title="Delete">🗑️</button>
-            </div>
-          </div>
         `;
+        
+        if (lessonPlan) {
+          html += `
+            <div class="lesson-plan-content">
+              <div class="lesson-plan-title">
+                <strong>Lesson:</strong> ${lessonPlan.title}
+              </div>
+              ${lessonPlan.objectives ? `
+                <div class="lesson-plan-section">
+                  <strong>Learning Objectives:</strong>
+                  <p>${lessonPlan.objectives}</p>
+                </div>
+              ` : ''}
+              ${lessonPlan.materials ? `
+                <div class="lesson-plan-section">
+                  <strong>Materials:</strong>
+                  <p>${lessonPlan.materials}</p>
+                </div>
+              ` : ''}
+              ${lessonPlan.activities ? `
+                <div class="lesson-plan-section">
+                  <strong>Activities:</strong>
+                  <p>${lessonPlan.activities}</p>
+                </div>
+              ` : ''}
+              ${lessonPlan.homework ? `
+                <div class="lesson-plan-section">
+                  <strong>Homework:</strong>
+                  <p>${lessonPlan.homework}</p>
+                </div>
+              ` : ''}
+              ${lessonPlan.notes ? `
+                <div class="lesson-plan-section">
+                  <strong>Notes:</strong>
+                  <p>${lessonPlan.notes}</p>
+                </div>
+              ` : ''}
+              <div class="lesson-plan-actions">
+                <button class="btn btn-outline btn-sm" onclick="app.editLessonPlan('${lessonPlan.id}', '${dateStr}', ${JSON.stringify(recurringClass).replace(/"/g, '&quot;')})">✏️ Edit</button>
+                <button class="btn btn-outline btn-sm" onclick="app.deleteLessonPlan('${lessonPlan.id}')">🗑️ Delete</button>
+              </div>
+            </div>
+          `;
+        } else {
+          html += `
+            <div class="no-plan-content">
+              <p>No lesson plan created yet for this session.</p>
+              <button class="btn btn-primary" onclick='app.showAddLessonPlanModal("${dateStr}", ${JSON.stringify(recurringClass).replace(/"/g, '&quot;')})'>+ Add Lesson Plan</button>
+            </div>
+          `;
+        }
+        
+        html += `</div>`;
       });
     }
     
@@ -434,36 +505,71 @@ class ProjectPlanyApp {
   // Weekly Schedule
   renderWeeklySchedule() {
     const schedule = document.getElementById('weekSchedule');
-    const times = ['8:00 AM', '9:00 AM', '10:00 AM', '11:00 AM', '1:00 PM', '2:00 PM'];
+    
+    if (this.recurringClasses.length === 0) {
+      schedule.innerHTML = `
+        <div class="empty-schedule">
+          <p>You haven't set up any recurring classes yet.</p>
+          <p>Click "+ Add Recurring Class" to get started.</p>
+        </div>
+      `;
+      return;
+    }
+    
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
     
-    schedule.innerHTML = '<div class="time-slot time-label"></div><div class="day-row">' + 
-      days.map(d => `<div class="time-slot time-label">${d}</div>`).join('') + '</div>';
-    
-    times.forEach((time, timeIdx) => {
-      schedule.innerHTML += `<div class="time-slot time-label">${time}</div>`;
-      schedule.innerHTML += '<div class="day-row">' + 
-        days.map((_, dayIdx) => {
-          const lesson = this.weeklySchedule[timeIdx][dayIdx];
-          return `<div class="time-slot lesson-slot ${lesson ? 'filled' : ''}" onclick="app.editScheduleSlot(${timeIdx}, ${dayIdx})">
-            ${lesson ? `<div class="lesson-title">${lesson.title}</div><div class="lesson-subject">${lesson.subject}</div>` : ''}
-          </div>`;
-        }).join('') + 
-      '</div>';
+    // Group classes by day
+    const classesByDay = {};
+    days.forEach((_, idx) => {
+      classesByDay[idx] = this.recurringClasses
+        .filter(c => c.day === idx)
+        .sort((a, b) => a.time.localeCompare(b.time));
     });
+    
+    let html = '<div class="recurring-schedule-grid">';
+    
+    days.forEach((dayName, dayIdx) => {
+      html += `
+        <div class="schedule-day-column">
+          <div class="schedule-day-header">${dayName}</div>
+          <div class="schedule-day-classes">
+      `;
+      
+      const dayClasses = classesByDay[dayIdx];
+      
+      if (dayClasses.length === 0) {
+        html += '<div class="no-classes">No classes</div>';
+      } else {
+        dayClasses.forEach(cls => {
+          html += `
+            <div class="recurring-class-card">
+              <div class="recurring-class-time">${cls.time}</div>
+              <div class="recurring-class-name">${cls.name}</div>
+              <div class="recurring-class-subject">${cls.subject}</div>
+              ${cls.location ? `<div class="recurring-class-location">📍 ${cls.location}</div>` : ''}
+              <div class="recurring-class-duration">${cls.duration} min</div>
+              <div class="recurring-class-actions">
+                <button class="icon-btn" onclick="app.editRecurringClass('${cls.id}')" title="Edit">✏️</button>
+                <button class="icon-btn" onclick="app.deleteRecurringClass('${cls.id}')" title="Delete">🗑️</button>
+              </div>
+            </div>
+          `;
+        });
+      }
+      
+      html += `
+          </div>
+        </div>
+      `;
+    });
+    
+    html += '</div>';
+    schedule.innerHTML = html;
   }
 
-  async editScheduleSlot(time, day) {
-    const lesson = this.weeklySchedule[time][day];
-    if (lesson) {
-      if (confirm(`Remove "${lesson.title}" from schedule?`)) {
-        await dbService.saveScheduleSlot(day, time, null);
-        this.weeklySchedule[time][day] = null;
-        this.renderWeeklySchedule();
-      }
-    } else {
-      this.showAddLessonModal(time, day);
-    }
+  async editRecurringClass(id) {
+    // TODO: Implement edit functionality
+    alert('Edit functionality coming soon. For now, delete and recreate the class.');
   }
 
   // Lessons
@@ -731,8 +837,8 @@ class ProjectPlanyApp {
   }
 
   updateStats() {
-    document.getElementById('lessonsCount').textContent = this.lessons.length;
-    document.getElementById('templatesCount').textContent = this.templates.length;
+    document.getElementById('lessonsCount').textContent = this.lessonPlans.length;
+    document.getElementById('templatesCount').textContent = this.recurringClasses.length;
   }
 }
 
@@ -742,3 +848,175 @@ app.init();
 
 // Make app globally available for onclick handlers
 window.app = app;
+
+  // ========== RECURRING CLASSES ==========
+  
+  showAddRecurringClassModal() {
+    document.getElementById('addRecurringClassModal').classList.add('active');
+  }
+
+  async saveRecurringClass() {
+    const name = document.getElementById('recurringClassName').value;
+    const subject = document.getElementById('recurringClassSubject').value;
+    const day = parseInt(document.getElementById('recurringDay').value);
+    const time = document.getElementById('recurringTime').value;
+    const duration = parseInt(document.getElementById('recurringDuration').value);
+    const location = document.getElementById('recurringLocation').value;
+    
+    if (!name || !subject) {
+      alert('Please fill in class name and subject');
+      return;
+    }
+    
+    const recurringClass = {
+      name,
+      subject,
+      day,
+      time,
+      duration,
+      location
+    };
+    
+    await dbService.createRecurringClass(recurringClass);
+    await this.loadRecurringClasses();
+    this.closeModal('addRecurringClassModal');
+    
+    // Clear form
+    document.getElementById('recurringClassName').value = '';
+    document.getElementById('recurringClassSubject').value = '';
+    document.getElementById('recurringLocation').value = '';
+  }
+
+  async loadRecurringClasses() {
+    this.recurringClasses = await dbService.getRecurringClasses();
+    this.renderWeeklySchedule();
+    this.renderCalendarView(); // Refresh calendar to show recurring classes
+  }
+
+  async deleteRecurringClass(id) {
+    if (confirm('Delete this recurring class? This will not delete existing lesson plans.')) {
+      await dbService.deleteRecurringClass(id);
+      await this.loadRecurringClasses();
+    }
+  }
+
+  // ========== LESSON PLANS ==========
+  
+  showAddLessonPlanModal(date, recurringClass) {
+    this.selectedClassSession = { date, recurringClass };
+    
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dateObj = new Date(date);
+    
+    document.getElementById('lessonModalTitle').textContent = `Add Lesson Plan - ${recurringClass.name}`;
+    document.getElementById('lessonModalDescription').textContent = 
+      `${dayNames[dateObj.getDay()]}, ${dateObj.toLocaleDateString()} • ${recurringClass.subject}`;
+    
+    // Clear previous values
+    document.getElementById('dailyLessonTitle').value = '';
+    document.getElementById('dailyLessonObjectives').value = '';
+    document.getElementById('dailyLessonMaterials').value = '';
+    document.getElementById('dailyLessonActivities').value = '';
+    document.getElementById('dailyLessonHomework').value = '';
+    document.getElementById('dailyLessonNotes').value = '';
+    
+    document.getElementById('addLessonToClassModal').classList.add('active');
+  }
+
+  async saveLessonPlan() {
+    if (!this.selectedClassSession) return;
+    
+    const { date, recurringClass, editingPlanId } = this.selectedClassSession;
+    
+    const lessonPlan = {
+      date,
+      recurringClassId: recurringClass.id,
+      className: recurringClass.name,
+      subject: recurringClass.subject,
+      title: document.getElementById('dailyLessonTitle').value,
+      objectives: document.getElementById('dailyLessonObjectives').value,
+      materials: document.getElementById('dailyLessonMaterials').value,
+      activities: document.getElementById('dailyLessonActivities').value,
+      homework: document.getElementById('dailyLessonHomework').value,
+      notes: document.getElementById('dailyLessonNotes').value
+    };
+    
+    if (!lessonPlan.title) {
+      alert('Please add a lesson title');
+      return;
+    }
+    
+    if (editingPlanId) {
+      await dbService.updateLessonPlan(editingPlanId, lessonPlan);
+    } else {
+      await dbService.createLessonPlan(lessonPlan);
+    }
+    
+    await this.loadLessonPlans();
+    this.closeModal('addLessonToClassModal');
+    this.selectedClassSession = null;
+  }
+
+  async loadLessonPlans() {
+    this.lessonPlans = await dbService.getLessonPlans();
+    this.renderCalendarView(); // Refresh calendar
+  }
+
+  async deleteLessonPlan(id) {
+    if (confirm('Delete this lesson plan?')) {
+      await dbService.deleteLessonPlan(id);
+      await this.loadLessonPlans();
+    }
+  }
+
+  // Get recurring classes for a specific day of week
+  getRecurringClassesForDay(dayOfWeek) {
+    return this.recurringClasses.filter(c => c.day === dayOfWeek);
+  }
+
+  // Get lesson plans for a specific date
+  getLessonPlansForDate(dateStr) {
+    return this.lessonPlans.filter(lp => lp.date === dateStr);
+  }
+
+  // Get sessions (recurring classes + lesson plans) for a date
+  getSessionsForDate(dateStr) {
+    const dateObj = new Date(dateStr);
+    const dayOfWeek = dateObj.getDay();
+    const dayOfWeekAdjusted = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Convert to Mon=0, Sun=6
+    
+    const recurring = this.getRecurringClassesForDay(dayOfWeekAdjusted);
+    const plans = this.getLessonPlansForDate(dateStr);
+    
+    return recurring.map(rc => {
+      const plan = plans.find(p => p.recurringClassId === rc.id);
+      return {
+        recurringClass: rc,
+        lessonPlan: plan || null
+      };
+    });
+  }
+
+  // Edit lesson plan
+  editLessonPlan(planId, dateStr, recurringClass) {
+    const plan = this.lessonPlans.find(p => p.id === planId);
+    if (!plan) return;
+    
+    this.selectedClassSession = { date: dateStr, recurringClass, editingPlanId: planId };
+    
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dateObj = new Date(dateStr);
+    
+    document.getElementById('lessonModalTitle').textContent = `Edit Lesson Plan - ${recurringClass.name}`;
+    document.getElementById('lessonModalDescription').textContent = 
+      `${dayNames[dateObj.getDay()]}, ${dateObj.toLocaleDateString()} • ${recurringClass.subject}`;
+    
+    document.getElementById('dailyLessonTitle').value = plan.title || '';
+    document.getElementById('dailyLessonObjectives').value = plan.objectives || '';
+    document.getElementById('dailyLessonMaterials').value = plan.materials || '';
+    document.getElementById('dailyLessonActivities').value = plan.activities || '';
+    document.getElementById('dailyLessonHomework').value = plan.homework || '';
+    document.getElementById('dailyLessonNotes').value = plan.notes || '';
+    
+    document.getElementById('addLessonToClassModal').classList.add('active');
+  }

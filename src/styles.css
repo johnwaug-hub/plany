@@ -910,3 +910,339 @@ textarea {
         gap: 0.5rem;
     }
 }
+
+/* Session Cards in Day View */
+.day-view-sessions {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.session-card {
+    background: white;
+    border: 2px solid var(--cream);
+    border-radius: 12px;
+    padding: 1.5rem;
+    transition: all 0.3s ease;
+}
+
+.session-card.has-plan {
+    border-color: var(--sage);
+}
+
+.session-card.needs-plan {
+    border-color: var(--accent-yellow);
+}
+
+.session-card:hover {
+    box-shadow: 0 6px 20px var(--shadow-md);
+}
+
+.session-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid var(--cream);
+}
+
+.session-info h4 {
+    font-family: 'Crimson Pro', serif;
+    font-size: 1.5rem;
+    color: var(--deep-teal);
+    margin: 0 0 0.5rem 0;
+}
+
+.session-meta {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    font-size: 0.9rem;
+    color: var(--soft-gray);
+}
+
+.session-tag {
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.session-tag.planned {
+    background: var(--sage);
+    color: white;
+}
+
+.session-tag.unplanned {
+    background: var(--accent-yellow);
+    color: var(--charcoal);
+}
+
+.lesson-plan-content {
+    margin-top: 1rem;
+}
+
+.lesson-plan-title {
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
+    color: var(--charcoal);
+}
+
+.lesson-plan-section {
+    margin-bottom: 1rem;
+    line-height: 1.6;
+}
+
+.lesson-plan-section strong {
+    color: var(--deep-teal);
+    display: block;
+    margin-bottom: 0.5rem;
+}
+
+.lesson-plan-section p {
+    color: var(--charcoal);
+    white-space: pre-wrap;
+}
+
+.lesson-plan-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--cream);
+}
+
+.no-plan-content {
+    text-align: center;
+    padding: 2rem;
+    color: var(--soft-gray);
+}
+
+.no-plan-content p {
+    margin-bottom: 1rem;
+}
+
+.no-sessions-message {
+    text-align: center;
+    padding: 3rem;
+    color: var(--soft-gray);
+    font-size: 1.1rem;
+}
+
+.no-sessions-message a {
+    color: var(--terracotta);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.no-sessions-message a:hover {
+    text-decoration: underline;
+}
+
+/* Calendar session indicators */
+.calendar-day.has-sessions {
+    background: linear-gradient(135deg, #FFF9E6 0%, #FFFBF0 100%);
+    border-color: var(--accent-yellow);
+}
+
+.calendar-day.all-planned {
+    background: linear-gradient(135deg, #E8F5E9 0%, #F1F8F2 100%);
+    border-color: var(--sage);
+}
+
+.session-indicator {
+    font-size: 0.7rem;
+    color: var(--charcoal);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 600;
+}
+
+/* Week view sessions */
+.week-day-sessions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.week-session-item {
+    background: var(--cream);
+    padding: 0.75rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-left: 3px solid var(--soft-gray);
+}
+
+.week-session-item.planned {
+    background: var(--sage);
+    color: white;
+    border-left-color: var(--deep-teal);
+}
+
+.week-session-item.unplanned {
+    background: var(--accent-yellow);
+    color: var(--charcoal);
+    border-left-color: #E8B84D;
+}
+
+.week-session-item:hover {
+    transform: scale(1.02);
+}
+
+.week-session-name {
+    font-weight: 700;
+    font-size: 0.9rem;
+    margin-bottom: 0.25rem;
+}
+
+.week-session-status {
+    font-size: 0.8rem;
+    opacity: 0.9;
+}
+
+.week-day-summary {
+    text-align: center;
+    padding: 0.75rem;
+    margin-top: 0.5rem;
+    background: var(--warm-white);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--deep-teal);
+}
+
+.no-sessions {
+    text-align: center;
+    color: var(--soft-gray);
+    font-style: italic;
+    padding: 2rem 0.5rem;
+}
+
+/* Recurring Schedule Grid */
+.recurring-schedule-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.schedule-day-column {
+    background: var(--warm-white);
+    border-radius: 12px;
+    overflow: hidden;
+    border: 2px solid var(--cream);
+}
+
+.schedule-day-header {
+    background: var(--sage);
+    color: white;
+    padding: 1rem;
+    text-align: center;
+    font-weight: 700;
+    font-size: 1rem;
+}
+
+.schedule-day-classes {
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-height: 200px;
+}
+
+.no-classes {
+    text-align: center;
+    color: var(--soft-gray);
+    font-style: italic;
+    padding: 2rem 0;
+}
+
+.recurring-class-card {
+    background: white;
+    border: 2px solid var(--cream);
+    border-radius: 10px;
+    padding: 1rem;
+    transition: all 0.3s ease;
+}
+
+.recurring-class-card:hover {
+    border-color: var(--terracotta);
+    box-shadow: 0 4px 12px var(--shadow-md);
+}
+
+.recurring-class-time {
+    font-weight: 700;
+    color: var(--terracotta);
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.recurring-class-name {
+    font-weight: 700;
+    color: var(--deep-teal);
+    font-size: 1.1rem;
+    margin-bottom: 0.25rem;
+}
+
+.recurring-class-subject {
+    color: var(--soft-gray);
+    font-size: 0.9rem;
+    margin-bottom: 0.25rem;
+}
+
+.recurring-class-location {
+    color: var(--soft-gray);
+    font-size: 0.85rem;
+    margin-bottom: 0.25rem;
+}
+
+.recurring-class-duration {
+    color: var(--soft-gray);
+    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
+}
+
+.recurring-class-actions {
+    display: flex;
+    gap: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--cream);
+}
+
+.empty-schedule {
+    text-align: center;
+    padding: 3rem;
+    color: var(--soft-gray);
+}
+
+.empty-schedule p {
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+}
+
+@media (max-width: 1200px) {
+    .recurring-schedule-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .recurring-schedule-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .session-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    
+    .session-meta {
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+}

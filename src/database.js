@@ -278,3 +278,120 @@ export class DatabaseService {
 }
 
 export const dbService = new DatabaseService();
+
+  // ========== RECURRING CLASSES ==========
+
+  async createRecurringClass(classData) {
+    try {
+      const classesRef = this.getUserCollection('recurringClasses');
+      const docRef = await addDoc(classesRef, {
+        ...classData,
+        createdAt: serverTimestamp()
+      });
+      return { id: docRef.id, ...classData };
+    } catch (error) {
+      console.error('Error creating recurring class:', error);
+      throw error;
+    }
+  }
+
+  async updateRecurringClass(classId, classData) {
+    try {
+      const classRef = this.getUserDoc('recurringClasses', classId);
+      await updateDoc(classRef, {
+        ...classData,
+        updatedAt: serverTimestamp()
+      });
+      return { id: classId, ...classData };
+    } catch (error) {
+      console.error('Error updating recurring class:', error);
+      throw error;
+    }
+  }
+
+  async deleteRecurringClass(classId) {
+    try {
+      const classRef = this.getUserDoc('recurringClasses', classId);
+      await deleteDoc(classRef);
+    } catch (error) {
+      console.error('Error deleting recurring class:', error);
+      throw error;
+    }
+  }
+
+  async getRecurringClasses() {
+    try {
+      const classesRef = this.getUserCollection('recurringClasses');
+      const q = query(classesRef, orderBy('day'), orderBy('time'));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error('Error getting recurring classes:', error);
+      return [];
+    }
+  }
+
+  // ========== LESSON PLANS ==========
+
+  async createLessonPlan(planData) {
+    try {
+      const plansRef = this.getUserCollection('lessonPlans');
+      const docRef = await addDoc(plansRef, {
+        ...planData,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      return { id: docRef.id, ...planData };
+    } catch (error) {
+      console.error('Error creating lesson plan:', error);
+      throw error;
+    }
+  }
+
+  async updateLessonPlan(planId, planData) {
+    try {
+      const planRef = this.getUserDoc('lessonPlans', planId);
+      await updateDoc(planRef, {
+        ...planData,
+        updatedAt: serverTimestamp()
+      });
+      return { id: planId, ...planData };
+    } catch (error) {
+      console.error('Error updating lesson plan:', error);
+      throw error;
+    }
+  }
+
+  async deleteLessonPlan(planId) {
+    try {
+      const planRef = this.getUserDoc('lessonPlans', planId);
+      await deleteDoc(planRef);
+    } catch (error) {
+      console.error('Error deleting lesson plan:', error);
+      throw error;
+    }
+  }
+
+  async getLessonPlans() {
+    try {
+      const plansRef = this.getUserCollection('lessonPlans');
+      const q = query(plansRef, orderBy('date', 'desc'));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error('Error getting lesson plans:', error);
+      return [];
+    }
+  }
+
+  async getLessonPlansByDate(date) {
+    try {
+      const plansRef = this.getUserCollection('lessonPlans');
+      const q = query(plansRef, where('date', '==', date));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error('Error getting lesson plans by date:', error);
+      return [];
+    }
+  }
