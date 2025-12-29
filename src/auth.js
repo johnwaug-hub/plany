@@ -48,9 +48,10 @@ export class AuthService {
       await setDoc(doc(db, 'users', user.uid, 'profile', 'data'), {
         name: displayName,
         email: email,
+        selectedYear: '2025-2026',
         schoolYear: {
-          start: '2024-09-01',
-          end: '2025-06-15'
+          start: '2025-08-18',
+          end: '2026-06-12'
         },
         periodsPerDay: 6,
         minutesPerPeriod: 45,

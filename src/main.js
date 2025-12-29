@@ -496,13 +496,31 @@ class ProjectPlanyApp {
   }
 
   // School Year
+  updateSchoolYear() {
+    const selectedYear = document.getElementById('schoolYearSelector').value;
+    const [startYear, endYear] = selectedYear.split('-');
+    
+    // Update the display
+    document.getElementById('currentSchoolYear').textContent = `${selectedYear} School Year`;
+    
+    // Update default dates based on selected year
+    // Typical US school year: mid-August to early June
+    const yearStart = `${startYear}-08-18`;
+    const yearEnd = `${endYear}-06-12`;
+    
+    document.getElementById('yearStart').value = yearStart;
+    document.getElementById('yearEnd').value = yearEnd;
+  }
+
   async saveYearSettings() {
+    const selectedYear = document.getElementById('schoolYearSelector').value;
     const yearStart = document.getElementById('yearStart').value;
     const yearEnd = document.getElementById('yearEnd').value;
     const periodsPerDay = parseInt(document.getElementById('periodsPerDay').value);
     const minutesPerPeriod = parseInt(document.getElementById('minutesPerPeriod').value);
     
     await dbService.updateUserProfile({
+      selectedYear,
       schoolYear: { start: yearStart, end: yearEnd },
       periodsPerDay,
       minutesPerPeriod
