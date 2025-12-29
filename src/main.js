@@ -2,7 +2,7 @@ import { authService } from './auth.js';
 import { dbService } from './database.js';
 import './styles.css';
 
-class Project PlanyApp {
+class ProjectPlanyApp {
   constructor() {
     this.currentDate = new Date();
     this.lessons = [];
@@ -554,7 +554,7 @@ class Project PlanyApp {
 }
 
 // Initialize app
-const app = new Project PlanyApp();
+const app = new ProjectPlanyApp();
 app.init();
 
 // Make app globally available for onclick handlers
