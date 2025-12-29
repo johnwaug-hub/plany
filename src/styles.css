@@ -703,3 +703,210 @@ textarea {
         align-items: flex-start;
     }
 }
+
+/* Week View Styles */
+.week-view-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.week-day-card {
+    background: white;
+    border: 2px solid var(--cream);
+    border-radius: 12px;
+    padding: 1rem;
+    min-height: 200px;
+    transition: all 0.3s ease;
+}
+
+.week-day-card.has-lessons {
+    border-color: var(--sage);
+    background: linear-gradient(135deg, var(--warm-white) 0%, #FEFDF8 100%);
+}
+
+.week-day-card:hover {
+    box-shadow: 0 4px 16px var(--shadow-md);
+    transform: translateY(-2px);
+}
+
+.week-day-header {
+    border-bottom: 2px solid var(--cream);
+    padding-bottom: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.week-day-name {
+    font-weight: 700;
+    color: var(--deep-teal);
+    font-size: 1rem;
+}
+
+.week-day-date {
+    font-size: 0.85rem;
+    color: var(--soft-gray);
+    margin-top: 0.25rem;
+}
+
+.week-day-lessons {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.week-lesson-item {
+    background: var(--sage);
+    color: white;
+    padding: 0.75rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.week-lesson-item:hover {
+    background: var(--deep-teal);
+    transform: scale(1.02);
+}
+
+.week-lesson-title {
+    font-weight: 700;
+    font-size: 0.9rem;
+    margin-bottom: 0.25rem;
+}
+
+.week-lesson-subject {
+    font-size: 0.8rem;
+    opacity: 0.9;
+}
+
+.no-lessons {
+    text-align: center;
+    color: var(--soft-gray);
+    font-style: italic;
+    padding: 2rem 0.5rem;
+}
+
+/* Day View Styles */
+.day-view-container {
+    margin-top: 1rem;
+}
+
+.day-view-header {
+    text-align: center;
+    padding: 2rem;
+    background: linear-gradient(135deg, var(--sage) 0%, var(--deep-teal) 100%);
+    color: white;
+    border-radius: 12px;
+    margin-bottom: 2rem;
+}
+
+.day-view-header h3 {
+    font-family: 'Crimson Pro', serif;
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+.day-view-header p {
+    font-size: 1.1rem;
+    opacity: 0.9;
+}
+
+.day-view-lessons {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.day-lesson-card {
+    background: white;
+    border: 2px solid var(--cream);
+    border-radius: 12px;
+    padding: 1.5rem;
+    transition: all 0.3s ease;
+}
+
+.day-lesson-card:hover {
+    border-color: var(--terracotta);
+    box-shadow: 0 6px 20px var(--shadow-md);
+}
+
+.day-lesson-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid var(--cream);
+}
+
+.day-lesson-header h4 {
+    font-family: 'Crimson Pro', serif;
+    font-size: 1.5rem;
+    color: var(--deep-teal);
+    margin: 0;
+}
+
+.day-lesson-tag {
+    background: var(--terracotta);
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.day-lesson-details {
+    margin-bottom: 1rem;
+}
+
+.day-lesson-meta {
+    color: var(--soft-gray);
+    margin-bottom: 1rem;
+    font-size: 0.95rem;
+}
+
+.day-lesson-section {
+    margin-bottom: 0.75rem;
+    line-height: 1.6;
+}
+
+.day-lesson-section strong {
+    color: var(--deep-teal);
+    display: block;
+    margin-bottom: 0.25rem;
+}
+
+.day-lesson-actions {
+    display: flex;
+    gap: 0.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--cream);
+}
+
+.no-lessons-message {
+    text-align: center;
+    padding: 3rem;
+    color: var(--soft-gray);
+    font-size: 1.1rem;
+    font-style: italic;
+}
+
+/* Responsive adjustments for week view */
+@media (max-width: 1200px) {
+    .week-view-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .week-view-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .day-lesson-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+}

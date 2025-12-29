@@ -192,16 +192,77 @@ class ProjectPlanyApp {
 
   // Navigation
   showSection(sectionId) {
+    // Remove active class from all sections and nav buttons
     document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+    
+    // Add active class to current section and button
     document.getElementById(sectionId).classList.add('active');
+    const activeBtn = document.querySelector(`[data-section="${sectionId}"]`);
+    if (activeBtn) activeBtn.classList.add('active');
 
-    if (sectionId === 'calendar') this.renderCalendar();
+    // Render appropriate content
+    if (sectionId === 'calendar') this.renderCalendarView();
     if (sectionId === 'weekly') this.renderWeeklySchedule();
-    if (sectionId === 'lessons') this.renderLessons();
-    if (sectionId === 'templates') this.renderTemplates();
+  }
+
+  // Calendar view state
+  calendarView = 'month'; // 'month', 'week', or 'day'
+
+  setCalendarView(view) {
+    this.calendarView = view;
+    
+    // Update button states
+    document.querySelectorAll('#monthViewBtn, #weekViewBtn, #dayViewBtn').forEach(btn => {
+      btn.classList.remove('active');
+    });
+    document.getElementById(`${view}ViewBtn`).classList.add('active');
+    
+    this.renderCalendarView();
+  }
+
+  renderCalendarView() {
+    if (this.calendarView === 'month') {
+      this.renderMonthView();
+    } else if (this.calendarView === 'week') {
+      this.renderWeekView();
+    } else if (this.calendarView === 'day') {
+      this.renderDayView();
+    }
+  }
+
+  prevPeriod() {
+    if (this.calendarView === 'month') {
+      this.currentDate.setMonth(this.currentDate.getMonth() - 1);
+    } else if (this.calendarView === 'week') {
+      this.currentDate.setDate(this.currentDate.getDate() - 7);
+    } else if (this.calendarView === 'day') {
+      this.currentDate.setDate(this.currentDate.getDate() - 1);
+    }
+    this.renderCalendarView();
+  }
+
+  nextPeriod() {
+    if (this.calendarView === 'month') {
+      this.currentDate.setMonth(this.currentDate.getMonth() + 1);
+    } else if (this.calendarView === 'week') {
+      this.currentDate.setDate(this.currentDate.getDate() + 7);
+    } else if (this.calendarView === 'day') {
+      this.currentDate.setDate(this.currentDate.getDate() + 1);
+    }
+    this.renderCalendarView();
   }
 
   // Calendar functions
+  renderMonthView() {
+    // Hide other views
+    document.getElementById('calendarGrid').style.display = 'grid';
+    document.getElementById('weekViewContainer').style.display = 'none';
+    document.getElementById('dayViewContainer').style.display = 'none';
+    
+    this.renderCalendar();
+  }
+
   renderCalendar() {
     const year = this.currentDate.getFullYear();
     const month = this.currentDate.getMonth();
@@ -256,14 +317,118 @@ class ProjectPlanyApp {
     }
   }
 
-  prevMonth() {
-    this.currentDate.setMonth(this.currentDate.getMonth() - 1);
-    this.renderCalendar();
+  renderWeekView() {
+    // Show week view, hide others
+    document.getElementById('calendarGrid').style.display = 'none';
+    document.getElementById('weekViewContainer').style.display = 'block';
+    document.getElementById('dayViewContainer').style.display = 'none';
+    
+    const container = document.getElementById('weekViewContainer');
+    const weekStart = new Date(this.currentDate);
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1); // Start on Monday
+    
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                      'July', 'August', 'September', 'October', 'November', 'December'];
+    
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+    
+    document.getElementById('currentMonth').textContent = 
+      `${monthNames[weekStart.getMonth()]} ${weekStart.getDate()} - ${monthNames[weekEnd.getMonth()]} ${weekEnd.getDate()}, ${weekStart.getFullYear()}`;
+    
+    let html = '<div class="week-view-grid">';
+    
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(weekStart);
+      day.setDate(day.getDate() + i);
+      const dateStr = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+      const dayLessons = this.lessons.filter(l => l.date === dateStr);
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      
+      html += `
+        <div class="week-day-card ${dayLessons.length > 0 ? 'has-lessons' : ''}">
+          <div class="week-day-header">
+            <div class="week-day-name">${dayNames[day.getDay()]}</div>
+            <div class="week-day-date">${monthNames[day.getMonth()]} ${day.getDate()}</div>
+          </div>
+          <div class="week-day-lessons">
+            ${dayLessons.length === 0 ? '<div class="no-lessons">No classes scheduled</div>' : 
+              dayLessons.map(l => `
+                <div class="week-lesson-item">
+                  <div class="week-lesson-title">${l.title}</div>
+                  <div class="week-lesson-subject">${l.subject}</div>
+                </div>
+              `).join('')}
+          </div>
+        </div>
+      `;
+    }
+    
+    html += '</div>';
+    container.innerHTML = html;
   }
 
-  nextMonth() {
-    this.currentDate.setMonth(this.currentDate.getMonth() + 1);
-    this.renderCalendar();
+  renderDayView() {
+    // Show day view, hide others
+    document.getElementById('calendarGrid').style.display = 'none';
+    document.getElementById('weekViewContainer').style.display = 'none';
+    document.getElementById('dayViewContainer').style.display = 'block';
+    
+    const container = document.getElementById('dayViewContainer');
+    const day = this.currentDate;
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                      'July', 'August', 'September', 'October', 'November', 'December'];
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    
+    document.getElementById('currentMonth').textContent = 
+      `${dayNames[day.getDay()]}, ${monthNames[day.getMonth()]} ${day.getDate()}, ${day.getFullYear()}`;
+    
+    const dateStr = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+    const dayLessons = this.lessons.filter(l => l.date === dateStr);
+    
+    let html = `
+      <div class="day-view-container">
+        <div class="day-view-header">
+          <h3>${dayNames[day.getDay()]}</h3>
+          <p>${monthNames[day.getMonth()]} ${day.getDate()}, ${day.getFullYear()}</p>
+        </div>
+        <div class="day-view-lessons">
+    `;
+    
+    if (dayLessons.length === 0) {
+      html += '<div class="no-lessons-message">No classes scheduled for this day</div>';
+    } else {
+      dayLessons.forEach(lesson => {
+        html += `
+          <div class="day-lesson-card">
+            <div class="day-lesson-header">
+              <h4>${lesson.title}</h4>
+              <span class="day-lesson-tag">${lesson.subject}</span>
+            </div>
+            <div class="day-lesson-details">
+              <div class="day-lesson-meta">
+                <span>⏱️ ${lesson.duration} minutes</span>
+              </div>
+              ${lesson.objectives ? `<div class="day-lesson-section"><strong>Objectives:</strong> ${lesson.objectives}</div>` : ''}
+              ${lesson.materials ? `<div class="day-lesson-section"><strong>Materials:</strong> ${lesson.materials}</div>` : ''}
+              ${lesson.activities ? `<div class="day-lesson-section"><strong>Activities:</strong> ${lesson.activities}</div>` : ''}
+            </div>
+            <div class="day-lesson-actions">
+              <button class="icon-btn" onclick="app.editLesson('${lesson.id}')" title="Edit">✏️</button>
+              <button class="icon-btn" onclick="app.copyLesson('${lesson.id}')" title="Duplicate">📋</button>
+              <button class="icon-btn" onclick="app.deleteLesson('${lesson.id}')" title="Delete">🗑️</button>
+            </div>
+          </div>
+        `;
+      });
+    }
+    
+    html += `
+        </div>
+      </div>
+    `;
+    
+    container.innerHTML = html;
   }
 
   // Weekly Schedule

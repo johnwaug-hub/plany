@@ -74,11 +74,9 @@
         </header>
 
         <nav class="main-nav">
-            <button class="nav-btn active" onclick="app.showSection('calendar')">📅 Calendar</button>
-            <button class="nav-btn" onclick="app.showSection('weekly')">📋 Weekly Schedule</button>
-            <button class="nav-btn" onclick="app.showSection('school-year')">🎓 School Year Setup</button>
-            <button class="nav-btn" onclick="app.showSection('lessons')">📚 My Lessons</button>
-            <button class="nav-btn" onclick="app.showSection('templates')">📝 Templates</button>
+            <button class="nav-btn active" onclick="app.showSection('calendar')" data-section="calendar">📅 Calendar</button>
+            <button class="nav-btn" onclick="app.showSection('weekly')" data-section="weekly">📋 Weekly Schedule</button>
+            <button class="nav-btn" onclick="app.showSection('school-year')" data-section="school-year">🎓 School Year Setup</button>
         </nav>
 
         <!-- Calendar Section -->
@@ -86,13 +84,24 @@
             <div class="card">
                 <div class="card-header">
                     <h2 class="card-title">Lesson Calendar</h2>
-                    <div>
-                        <button class="btn btn-outline" onclick="app.prevMonth()">← Prev</button>
-                        <button class="btn btn-outline" onclick="app.nextMonth()">Next →</button>
+                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                        <div class="btn-group" style="margin: 0;">
+                            <button class="btn btn-outline active" id="monthViewBtn" onclick="app.setCalendarView('month')">Month</button>
+                            <button class="btn btn-outline" id="weekViewBtn" onclick="app.setCalendarView('week')">Week</button>
+                            <button class="btn btn-outline" id="dayViewBtn" onclick="app.setCalendarView('day')">Day</button>
+                        </div>
+                        <div>
+                            <button class="btn btn-outline" onclick="app.prevPeriod()">← Prev</button>
+                            <button class="btn btn-outline" onclick="app.nextPeriod()">Next →</button>
+                        </div>
                     </div>
                 </div>
                 <h3 id="currentMonth" style="text-align: center; font-family: 'Crimson Pro', serif; font-size: 1.5rem; margin-bottom: 1rem;"></h3>
-                <div class="calendar-grid" id="calendarGrid"></div>
+                <div id="calendarContainer">
+                    <div class="calendar-grid" id="calendarGrid"></div>
+                    <div id="weekViewContainer" style="display: none;"></div>
+                    <div id="dayViewContainer" style="display: none;"></div>
+                </div>
             </div>
         </div>
 
@@ -101,7 +110,7 @@
             <div class="card">
                 <div class="card-header">
                     <h2 class="card-title">Weekly Schedule</h2>
-                    <button class="btn btn-primary" onclick="app.showAddLessonModal()">+ Add Lesson to Schedule</button>
+                    <button class="btn btn-primary" onclick="app.showAddLessonModal()">+ Add Class Session</button>
                 </div>
                 <div class="week-schedule" id="weekSchedule"></div>
             </div>
