@@ -840,14 +840,6 @@ class ProjectPlanyApp {
     document.getElementById('lessonsCount').textContent = this.lessonPlans.length;
     document.getElementById('templatesCount').textContent = this.recurringClasses.length;
   }
-}
-
-// Initialize app
-const app = new ProjectPlanyApp();
-app.init();
-
-// Make app globally available for onclick handlers
-window.app = app;
 
   // ========== RECURRING CLASSES ==========
   
@@ -1020,3 +1012,12 @@ window.app = app;
     
     document.getElementById('addLessonToClassModal').classList.add('active');
   }
+
+}
+
+// Initialize app
+const app = new ProjectPlanyApp();
+app.init();
+
+// Make app globally available for onclick handlers
+window.app = app;
