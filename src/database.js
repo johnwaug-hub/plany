@@ -275,9 +275,6 @@ export class DatabaseService {
       throw error;
     }
   }
-}
-
-export const dbService = new DatabaseService();
 
   // ========== RECURRING CLASSES ==========
 
@@ -395,3 +392,6 @@ export const dbService = new DatabaseService();
       return [];
     }
   }
+}
+
+export const dbService = new DatabaseService();
