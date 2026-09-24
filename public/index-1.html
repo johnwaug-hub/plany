@@ -1,0 +1,598 @@
+<title>Plany Audit v6.0.1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+:root{
+  --bg:#f5f6f9; --surface:#ffffff; --sunken:#eceef3; --ink:#1b2130; --ink-2:#4a5368; --ink-3:#6b7389;
+  --line:#dde1ea; --accent:#0e6f68; --accent-soft:#e0f1ef;
+  --crit:#b42318; --crit-bg:#fdecea; --high:#b54708; --high-bg:#fef0e4; --med:#8a6100; --med-bg:#fbf3d9; --low:#4a5368; --low-bg:#eceef3;
+  --done:#1f7a3f;
+  --display:"IBM Plex Sans Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  color-scheme:dark;--bg:#12151c;--surface:#1a1f29;--sunken:#222834;--ink:#e8ebf2;--ink-2:#b3bacb;--ink-3:#8b93a7;--line:#2e3543;
+  --accent:#4fc4b9;--accent-soft:#16312f;--crit:#ff8a80;--crit-bg:#3a1c1a;--high:#ffae70;--high-bg:#3a2515;--med:#f2c94c;--med-bg:#332a10;--low:#b3bacb;--low-bg:#262c38;--done:#6fd598;}}
+:root[data-theme="dark"]{
+  color-scheme:dark;--bg:#12151c;--surface:#1a1f29;--sunken:#222834;--ink:#e8ebf2;--ink-2:#b3bacb;--ink-3:#8b93a7;--line:#2e3543;
+  --accent:#4fc4b9;--accent-soft:#16312f;--crit:#ff8a80;--crit-bg:#3a1c1a;--high:#ffae70;--high-bg:#3a2515;--med:#f2c94c;--med-bg:#332a10;--low:#b3bacb;--low-bg:#262c38;--done:#6fd598;}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.6 var(--body);padding-inline:16px;padding-block:28px 64px}
+.wrap{max-width:1040px;margin:0 auto;display:flex;flex-direction:column;gap:40px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.15}
+h1{font-size:clamp(28px,5vw,40px);font-weight:700;letter-spacing:-.01em}
+h2{font-size:24px;font-weight:600}
+h3{font-size:17px;font-weight:600}
+p{margin:0;max-width:68ch}
+code,.ref{font-family:var(--mono);font-size:12.5px}
+.eyebrow{font:600 12px/1 var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+header{display:flex;flex-direction:column;gap:12px}
+.meta{color:var(--ink-3);font-size:13px}
+.lede{font-size:17px;color:var(--ink-2)}
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:2px}
+.tile b{font:700 30px/1 var(--display);font-variant-numeric:tabular-nums}
+.tile span{font-size:13px;color:var(--ink-2)}
+.tile.crit b{color:var(--crit)}.tile.high b{color:var(--high)}.tile.med b{color:var(--med)}.tile.low b{color:var(--low)}
+section{display:flex;flex-direction:column;gap:16px}
+.callout{background:var(--accent-soft);border-radius:10px;padding:16px 18px;display:flex;flex-direction:column;gap:8px}
+.callout ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
+.phases{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.phase{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:8px}
+.phase .when{font-size:12px;color:var(--ink-3);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.phase ul{margin:0;padding-left:18px;font-size:14px;color:var(--ink-2);display:flex;flex-direction:column;gap:3px}
+.controls{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;border-bottom:1px solid var(--line)}
+.chip{font:500 13px/1 var(--body);border:1px solid var(--line);background:var(--surface);color:var(--ink-2);border-radius:999px;padding:8px 12px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.chip:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.search{flex:1 1 200px;min-width:0;font:14px var(--body);padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
+.count{font-size:13px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.group{display:flex;flex-direction:column;gap:10px}
+.group > h3{display:flex;gap:10px;align-items:baseline}
+.group > h3 small{font:400 13px var(--body);color:var(--ink-3)}
+.item{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--sev);border-radius:8px;padding:14px 16px;display:grid;grid-template-columns:auto 1fr;gap:4px 12px}
+.item.is-done{opacity:.55}
+.item.is-done .ttl{text-decoration:line-through}
+.item input{margin-top:4px;width:18px;height:18px;accent-color:var(--done);grid-row:span 3}
+.top{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline}
+.pill{font:600 11px/1 var(--body);letter-spacing:.05em;text-transform:uppercase;padding:4px 7px;border-radius:4px;color:var(--sev);background:var(--sevbg);white-space:nowrap}
+.id{font:500 12px var(--mono);color:var(--ink-3)}
+.ttl{font-weight:600}
+.why{color:var(--ink-2);font-size:14px}
+.fix{font-size:14px}
+.fix b{color:var(--accent);font-weight:600}
+.ref{color:var(--ink-3);word-break:break-word}
+.s-crit{--sev:var(--crit);--sevbg:var(--crit-bg)}.s-high{--sev:var(--high);--sevbg:var(--high-bg)}.s-med{--sev:var(--med);--sevbg:var(--med-bg)}.s-low{--sev:var(--low);--sevbg:var(--low-bg)}
+.feat{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.feat div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:4px}
+.feat p{font-size:14px;color:var(--ink-2)}
+.ok{font-size:14px;color:var(--ink-2);columns:2;column-gap:32px;padding-left:18px;margin:0}
+.empty{color:var(--ink-3);font-style:italic}
+@media (max-width:720px){.tiles{grid-template-columns:repeat(2,1fr)}.phases,.feat{grid-template-columns:1fr}.ok{columns:1}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow">Plany · full audit · source v6.0.1</div>
+  <h1>Plany Audit v6.0.1</h1>
+  <p class="lede">A code-level audit of plany.work covering security, data loss, logic, printing, native builds, UI, accessibility, performance and features. Each finding cites the file and line it was found at.</p>
+  <p class="meta">September 23, 2026 · Scope: <code>app.js</code> (19,472 lines), <code>index.html</code>, <code>styles.css</code>, <code>sw.js</code>, <code>functions/index.js</code>, Firestore and Storage rules, manifest, Capacitor config. The login page and a locally served build were also rendered with Playwright and checked with axe-core. The critical findings were confirmed by re-reading the source. Nothing was changed.</p>
+</header>
+
+<div class="tiles" id="tiles"></div>
+
+<section>
+  <div class="eyebrow">Start here</div>
+  <h2>The five that matter most</h2>
+  <div class="callout">
+    <ol>
+      <li><b>Anyone with a Plany account can sign in as a teacher who used "Sign in with Microsoft".</b> The Firebase password is built from an ID stored in a profile doc every user can read (S1).</li>
+      <li><b>Another user can run script inside your app</b> by putting HTML in their name and sending a friend request, a shared lesson or a link request. That script can read your AI key and student records (S2).</li>
+      <li><b>Restoring a backup looks like it worked, but the data is gone after a reload.</b> The import writes to an old Firestore path the app no longer reads (D1).</li>
+      <li><b>Editing an assignment erases every student's score for it</b> (D2). <b>The Emergency Sub Plan printout leaves most fields blank</b> (D3).</li>
+      <li><b>Any event with "break" in its title cancels the whole day.</b> "Donuts with Dads Breakfast" hides every class (L2). <b>Tabs also reload on their own after each deploy</b>, which can throw away an open lesson (D5).</li>
+    </ol>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">Fix plan</div>
+  <h2>Suggested order</h2>
+  <div class="phases">
+    <div class="phase"><div class="when">Phase 0 · this week · 1–2 sessions</div><h3>Stop the bleeding</h3>
+      <ul><li>Deploy v6.0.1 (the AI key fix is built but not live)</li><li>S1 Microsoft sign-in: disable it until it's rebuilt on Firebase's own provider</li><li>S2 Escape everything from other users, and tighten the create rules</li><li>D1 backup import path · D2 assignment scores · D3 sub-plan keys</li><li>D5 service-worker reload · D6 Ctrl+Z in text fields · L2 "break" match</li><li>S10 clear device storage on logout</li></ul></div>
+    <div class="phase"><div class="when">Phase 1 · 3–4 sessions</div><h3>Close the security gaps</h3>
+      <ul><li>S3 + S5 together: keep AI keys on the server, authenticate the proxy with the Firebase ID token</li><li>S4 upgrade pdf.js · S11 security headers and SheetJS upgrade</li><li>S6 / S7 / S12 narrow profile, principal and Storage reads</li><li>N1 point the native apps at the proxy</li><li>U4 password reset + readable login errors</li></ul></div>
+    <div class="phase"><div class="when">Phase 2 · 3–4 sessions</div><h3>Correctness pass</h3>
+      <ul><li>Send every no-school check through <code>isNoSchoolEvent()</code> (L3, L12)</li><li>Stream truncation + packet toggles (L4, L5, D13)</li><li>Date anchors and UTC dates (L6–L10, L23)</li><li>Unsaved-change guard and undo for every delete (D7)</li><li>Print: branding, pop-up fallback, escaping (P1–P5)</li></ul></div>
+    <div class="phase"><div class="when">Phase 3 · ongoing</div><h3>Polish and grow</h3>
+      <ul><li>Phone month view, zoom, accessible modals (U1–U3)</li><li>Lazy-load pdf.js, jsPDF and SheetJS (W1)</li><li>Engineering foundation (E1–E6)</li><li>Features from the list below</li></ul></div>
+  </div>
+</section>
+
+<section id="findings">
+  <div class="eyebrow">All findings</div>
+  <h2>Findings</h2>
+  <p class="meta">Tick a finding to mark it fixed. Ticks are saved only in this browser.</p>
+  <div class="controls" role="toolbar" aria-label="Filter findings">
+    <button class="chip" data-sev="all" aria-pressed="true">All</button>
+    <button class="chip" data-sev="crit" aria-pressed="false">Critical</button>
+    <button class="chip" data-sev="high" aria-pressed="false">High</button>
+    <button class="chip" data-sev="med" aria-pressed="false">Medium</button>
+    <button class="chip" data-sev="low" aria-pressed="false">Low</button>
+    <button class="chip" id="hide-done" aria-pressed="false">Hide fixed</button>
+    <input class="search" id="q" type="search" placeholder="Search findings, e.g. print, principal, 1290" aria-label="Search findings">
+    <span class="count" id="count"></span>
+  </div>
+  <div id="list" class="group" style="gap:32px"></div>
+</section>
+
+<section>
+  <div class="eyebrow">Engineering</div>
+  <h2>Foundation suggestions</h2>
+  <div class="feat">
+    <div><h3>E1 · Put the code under version control</h3><p>Right now the only history is the dated copies in <code>_backups/</code>. A private Git repo gives you diffs, a way to find what broke, and one-command rollback. Commit before each deploy.</p></div>
+    <div><h3>E2 · Add a small test suite</h3><p>There are no tests. Start with unit tests for <code>getWeekStart</code>, <code>isNoSchoolEvent</code>, <code>countSchoolDaysLeft</code> and <code>formatDate</code>, run in the Phoenix timezone. Add one Playwright smoke test that logs into a test account and opens every view. Most bugs in this report would have been caught.</p></div>
+    <div><h3>E3 · Record client errors</h3><p>51 error toasts say only "Error …" and nothing is recorded anywhere. Write <code>window.onerror</code> and <code>unhandledrejection</code> events to a <code>clientErrors</code> collection so you see failures before teachers report them.</p></div>
+    <div><h3>E4 · Preview deploys</h3><p>Use <code>firebase hosting:channel:deploy preview</code> to test on a throwaway URL before going live. This matters more once D5 is fixed, because deploys will stop reloading open tabs.</p></div>
+    <div><h3>E5 · Split and bundle app.js</h3><p>Split the 880 KB single file into ES modules (auth, calendar, AI, print, students…) and bundle with esbuild. That gives you minification, dead-code warnings and files small enough to reason about. Do it gradually, one module per release.</p></div>
+    <div><h3>E6 · Turn on offline persistence</h3><p>Firestore's IndexedDB cache is off. Enabling it makes the app open instantly and keep working through the school's patchy Wi-Fi, with writes syncing when the connection returns.</p></div>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">Product</div>
+  <h2>Feature suggestions</h2>
+  <p class="meta">Ordered by value to a teacher who isn't you. Items tagged A1–B3 are from the August gap-closing plan and are still open.</p>
+  <div class="feat">
+    <div><h3>Forgot password + email verification</h3><p>Missing entirely today. Needed before any public launch, and email verification also closes the grant-spoofing hole in S3.</p></div>
+    <div><h3>Autosave drafts + unsaved-change guard</h3><p>Save lesson and sub-plan forms locally while typing. Ask before Esc or a backdrop click discards changes.</p></div>
+    <div><h3>Trash with 30-day restore</h3><p>Deleting a class, unit, event, student or resource is permanent today, protected only by a <code>confirm()</code>. A trash view replaces most of those prompts.</p></div>
+    <div><h3>Bump lessons forward / lock to date (A3)</h3><p>The snow-day feature. The shift-back logic already exists and can be generalized.</p></div>
+    <div><h3>Server-side AI with a monthly allowance (B1)</h3><p>Teachers get AI without finding an API key, and it removes S3 and S5 at the root. Keep bring-your-own-key as an unlimited option.</p></div>
+    <div><h3>Share links without an account (A2)</h3><p>Send a week's plan to an admin or co-teacher as a revocable link, with IEP, 504 and medical fields stripped.</p></div>
+    <div><h3>Principal feedback inbox</h3><p>Principals can leave comments, but no screen shows them to the teacher (L17). A small inbox completes the loop.</p></div>
+    <div><h3>Phone-first month view</h3><p>Show colored dots and a count in each day, and let a tap anywhere on the day open it. Fixes U1 and makes the app usable at the copier.</p></div>
+    <div><h3>Standards library + coverage report (A1, B2)</h3><p>Replace the hardcoded 225 standards and the free-text field with real codes, then show what has been taught, repeated or never covered.</p></div>
+    <div><h3>Working install shortcuts</h3><p>The manifest already offers "Add Lesson" and "This Week" from the home-screen icon, but the app ignores them. It's a small fix (W3).</p></div>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">Checked and fine</div>
+  <h2>Checked and working</h2>
+  <ul class="ok">
+    <li>All three Today buttons set all three date anchors</li>
+    <li>Week offsets match <code>[-1..5]</code> / <code>[0..4]</code></li>
+    <li>Every sub-day badge uses <code>isSubDay === true</code></li>
+    <li>Curriculum library is not year-scoped</li>
+    <li>Every <code>preparePrintDoc</code> call uses h = 0.3in</li>
+    <li>Model IDs: Sonnet 4.6 for packets (16k tokens), Haiku 4.5 for bulk fill</li>
+    <li>Service-worker cache name matches the app version</li>
+    <li>App shell is fetched network-first; Firestore and AI calls bypass the cache</li>
+    <li>Every collection the app uses has a rule, and no secrets are committed</li>
+    <li>The v6.0.0 contrast tokens, focus ring and <code>.form-control</code> rule are in place</li>
+    <li>Only 5 active backdrop blurs remain, so blur cost is fine</li>
+    <li><code>formatDate</code> uses local date parts</li>
+  </ul>
+</section>
+</div>
+
+<script>
+const F = [
+// ---------- SECURITY ----------
+["S1","crit","Security","Anyone can take over an account created with \"Sign in with Microsoft\"",
+ "The Firebase password is 'MS_' + the first 16 characters of the Microsoft user ID + '_PLN'. That ID is saved to users/{uid}, and any signed-in user can read or list that collection. An attacker lists users where msConnected == true, rebuilds each password and signs in. The Azure client ID is also supplied by the user, so a tenant the attacker controls can claim an email that has no account yet.",
+ "Turn off Microsoft sign-in now. Rebuild it on Firebase's OAuthProvider('microsoft.com') or on a server-issued custom token. Remove msUserId from the profile doc. Reset the password on every existing Microsoft-created account.",
+ "app.js:15579, 15597 · firestore.rules:7"],
+["S2","crit","Security","Stored XSS across accounts: another user's name runs as code in your app",
+ "Friend requests, shared lessons, shared curriculum and principal link requests put fromName, fromEmail, message, note and lesson fields into innerHTML without escaping. The rules let any signed-in user create these docs aimed at any uid, and let a user add themselves to someone else's friends list. A friend request whose fromName is <img onerror=…> runs as soon as you load the app. It can read localStorage AI keys and student records, and with no CSP it can send them anywhere.",
+ "Wrap every value that comes from another user in escHtml(). In the rules, require that fromName matches the sender's profile, validate field types and sizes, and remove the unilateral friends write. Accept friend requests in a transaction.",
+ "app.js:6984, 7008, 7043, 6751–6790, 6893–6900, 9914–9920, 18421 · firestore.rules:60–84, 124–126"],
+["S3","high","Security","Raw AI keys are stored in Firestore and handed to anyone granted access",
+ "apiKeyShares holds the plaintext key. A grantee can copy it once and keep using it after revocation. Grants are matched on email without checking email_verified, and sign-up never verifies email, so whoever registers a colleague's email first receives the key. Username lookup takes the first match on a self-chosen, non-unique name.",
+ "Keep keys on the server (Secret Manager or a collection no client can read). Have aiProxy look up the key after verifying the caller's ID token and grant. Require email_verified and make usernames unique.",
+ "app.js:263, 335–337, 383 · firestore.rules:103–117"],
+["S4","high","Security","pdf.js 3.11.174 can run code from a crafted PDF (CVE-2024-4367)",
+ "Shared-curriculum import copies the sender's storageUrl as-is, and the page picker renders it. A malicious PDF from another teacher can run script on plany.work.",
+ "Upgrade pdf.js to 4.2.67 or later, or pass isEvalSupported:false now. When importing a shared resource, rebuild the object instead of spreading the sender's fields.",
+ "index.html:79 · app.js:9943, 12659, 12744"],
+["S5","high","Security","The AI proxy is an open relay billed to you",
+ "aiProxy rejects only a wrong Origin; a request with no Origin, such as from curl, goes through. There is no auth check, no maxInstances, a 540 s timeout at 512 MB, and no limit on model or payload size.",
+ "Require a Firebase ID token (Authorization: Bearer), add App Check, set maxInstances, and allow-list models and max_tokens.",
+ "functions/index.js:155–213"],
+["S6","med","Security","Every user's profile can be read and listed by any signed-in user",
+ "Anyone can collect every user's email, school and role. It is also what makes S1 and S2 easy to aim.",
+ "Move the few public fields into publicProfiles, block list queries, and do username lookups in a Cloud Function.",
+ "firestore.rules:7"],
+["S7","med","Security","A linked principal can read everything, including tokens",
+ "The principal rule covers every subcollection, including settings/app, which holds moodleToken and msClientId, plus friends and all student records. The principal role is self-assigned, so the teacher's Accept click is the only gate.",
+ "Limit principal reads to lessons, classes, events and years, and move tokens out of readable docs.",
+ "firestore.rules:12–20 · app.js:13458, 15786"],
+["S8","med","Security","escHtml doesn't escape apostrophes, but it is used inside onclick strings",
+ "A teacher named O'Brien can't be opened in principal view, and a crafted name breaks out into script. In teacher preview, the principal sees the teacher's event titles unescaped.",
+ "Add ' → &#39; to escHtml and move inline handlers to data- attributes. Also escape the event titles in renderDayView.",
+ "app.js:17940, 6913, 18524–18565, 2258, 3229, 4722, 16383"],
+["S9","med","Security","Student names and IEP/504 flags are sent to the AI provider",
+ "The differentiation prompt includes full names, IEP/504/behavior/speech flags, reading levels and accommodations. With a shared key, this goes to a colleague's provider account.",
+ "Send first names or initials only, show a consent notice, and check TUSD's data agreement.",
+ "app.js:15446–15447"],
+["S10","med","Security","Signing out leaves the AI key and tokens on the device",
+ "Logout only calls auth.signOut(). clearAccountStorage() runs only when a different account signs in next, so on a shared classroom PC the AI key, ms_token and moodle_token stay behind.",
+ "Call clearAccountStorage() (and resetUserState) on sign-out.",
+ "app.js:1338, 1137, 6230"],
+["S11","med","Security","No security headers; CDN scripts have no integrity check; SheetJS has a known CVE",
+ "The site sends only HSTS: no CSP, frame-ancestors, nosniff or Referrer-Policy. The CDN scripts have no SRI. xlsx 0.18.5 has CVE-2023-30533 (prototype pollution).",
+ "Add the headers in firebase.json, add SRI hashes, and move to SheetJS 0.20.x from cdn.sheetjs.com.",
+ "firebase.json · index.html:79–84"],
+["S12","med","Security","Any signed-in user can read any uploaded file",
+ "storage.rules allows every authenticated user to read everything under users/*. Uploads can be up to 200 MB of any type.",
+ "Limit reads to the owner (share through the existing Firestore grant or a signed URL) and restrict content types.",
+ "storage.rules:7"],
+["S13","low","Security","The retired cleverToken function is still deployed",
+ "Clever was removed in v5.19.1, but the function and its rewrite are live. It accepts any redirect_uri.",
+ "Delete the function and the rewrite.",
+ "functions/index.js:28 · firebase.json:14"],
+["S14","low","Security","Loopholes in the rules for shared docs",
+ "Either party can rewrite fromUid/toUid on friendRequests, sharedLessons and sharedCurriculum. principalComments can be created without an active link.",
+ "Lock the identity fields with request.resource.data.fromUid == resource.data.fromUid, and require a link doc to exist.",
+ "firestore.rules:53, 60–84"],
+["S15","low","Security","The Microsoft OAuth state parameter is never checked",
+ "sessionStorage.ms_state is set but never compared on return, so the flow is open to login CSRF.",
+ "Compare the two and reject a mismatch. This becomes moot if S1 moves to Firebase's own provider.",
+ "app.js:16295"],
+
+// ---------- DATA LOSS ----------
+["D1","crit","Data loss","Restoring a backup writes to a path the app no longer reads",
+ "importData adds records to users/{uid}/classes, /lessons and /events. Everything else reads users/{uid}/years/{year}/…, so the toast says \"Imported 300 lessons\" and a reload shows nothing. Lessons also keep their old classId, while classes get new IDs.",
+ "Write through getYearPath(), and map old class IDs to new ones while importing.",
+ "app.js:10918–10957, 1406"],
+["D2","high","Data loss","Editing an assignment erases all its scores",
+ "The save handler always includes scores: {}, and the edit path calls .update(data). Fixing a typo in the title wipes every grade for that assignment.",
+ "Only set scores: {} when creating a new assignment.",
+ "app.js:15345–15360"],
+["D3","high","Data loss","The Emergency Sub Plan printout leaves most fields blank",
+ "Fields are saved under keys such as 'teacher-name' and 'end-of-day'. The print code reads g.teacherName, g.endOfDay and so on, so teacher name, room, contacts, behavior notes, end of day, materials and more all print empty.",
+ "Save with camelCase keys (and migrate existing docs), or read with the saved keys.",
+ "app.js:13023–13027, 13171–13178, 13207–13262"],
+["D4","high","Data loss","Sub-plan text with a double quote gets cut off when saved",
+ "value=\"${materialsVal}\" is not escaped. Type Use the \"red\" folder, reopen the form, and it shows 'Use the '. The next save stores the cut-off text.",
+ "Wrap every attribute value in escHtml().",
+ "app.js:11960, 11967, 11974, 11998"],
+["D5","high","Data loss","Open tabs reload on their own after every deploy",
+ "sw.js calls skipWaiting() on install, and the page reloads on every controllerchange. The 5-minute update check means any deploy reloads every open tab, throwing away an unsaved lesson. The first visit also loads twice, and the Update Now banner never gets a chance to show.",
+ "Remove skipWaiting from install, send SKIP_WAITING from the banner's button, and reload only when the user asked for the update.",
+ "sw.js:15–22 · app.js:13, 35–38, 41–90"],
+["D6","high","Data loss","Ctrl+Z in a text box undoes a Firestore change instead of your typing",
+ "Ctrl+Z / Ctrl+Y are handled before the isInput check and call preventDefault. Native text undo stops working, and a drag-move or delete is reverted in the database instead. The undo stacks are also never cleared, so after a year or account switch undo can write old lessons into the new account.",
+ "Move the check below if (isInput) return, and clear the stacks in resetUserState.",
+ "app.js:10360–10374, 10699"],
+["D7","high","Data loss","Esc or a backdrop click closes a form without saving",
+ "Nothing tracks unsaved changes. One Esc handler closes every open modal, including the parent lesson modal. Only 2 actions are recorded for undo, and deleting a class, unit, event or student has only a confirm().",
+ "Close only the top modal, ask before discarding a changed form, and route every delete through recordAction with an undo toast.",
+ "app.js:10351, 3121–3132, 3845, 11181, 4246"],
+["D8","med","Data loss","Removed seats come back after a reload",
+ "Seating is saved with set(…, {merge:true}), which merges the nested seats map, so deleted keys stay. A student can end up at two desks.",
+ "Save without merge.",
+ "app.js:14416–14420"],
+["D9","med","Data loss","Overlapping loads can mix two years' or two accounts' data",
+ "loadSchoolYearData runs about 12 awaits in a row and never checks whether it is still the latest load. Switching year quickly, or switching accounts mid-load, lets the slower load overwrite the globals.",
+ "Keep a load token and the uid, and throw away results that are stale.",
+ "app.js:1343, 1411–1476"],
+["D10","med","Data loss","A failed school-year switch leaves the spinner up and saves to the wrong year",
+ "settings.schoolYear changes before the load succeeds, and the catch block never calls hideLoading.",
+ "Use try/finally for the spinner, and restore the previous year in the catch.",
+ "app.js:2993–3020"],
+["D11","med","Data loss","Switching accounts leaves some of the previous account's state",
+ "resetUserState doesn't clear incomingKeyShare, myKeyGrants, curriculumDocs, pendingRequests, unreadCount, communications, seating or the undo stacks. The next user can use the previous user's shared AI key.",
+ "Reset all of them in resetUserState, and in loadSchoolYearData for the year-scoped ones.",
+ "app.js:6184–6225, 14879–14880"],
+["D12","med","Data loss","Scan re-import wipes a class's curriculum and schedule",
+ "Updating an existing class by name sets curriculum:'' and startingWeek:null, and replaces the whole schedule.",
+ "Update only the fields the scan actually produced.",
+ "app.js:17990–17999"],
+["D13","med","Data loss","A student packet can be saved to the wrong date",
+ "After the roughly two-minute stream, saveSubDay() reads the modal's date and form fields at that moment. If you open another date meanwhile, the packet is lost. aiStyle and aiInstructions are never saved.",
+ "Capture the date and form data before the stream starts, and write them directly.",
+ "app.js:12463–12474"],
+["D14","low","Data loss","Redo after a delete can delete another class's lesson",
+ "Redo finds the lesson by title and date only.",
+ "Match on classId and slotIndex, or track the id created by the restore.",
+ "app.js:3866–3875"],
+["D15","low","Data loss","Updating a lesson that isn't in the local list writes to lessons[-1]",
+ "findIndex returns -1 and the code assigns to that index without checking.",
+ "Guard the index and push the lesson if it's missing.",
+ "app.js:3717"],
+["D16","low","Data loss","A partly failed bulk curriculum delete leaves the list stale",
+ "Earlier batches are committed, but the local list is never filtered.",
+ "Filter after each batch that succeeds.",
+ "app.js:6102–6121"],
+
+// ---------- LOGIC ----------
+["L1","high","Logic","Printing from Day view can print a different lesson",
+ "printLessonPDF reads the lesson-modal inputs first, and closing the modal never clears them. Open lesson A, close it, print lesson B from Day view, and you get A's title, date and fields.",
+ "When called with a lessonId from outside the modal, build the printout from the saved lesson only.",
+ "app.js:2330–2333, 5442–5453, 3105"],
+["L2","high","Logic","Any event with \"break\" in its title cancels the whole day",
+ "isNoSchoolEvent matches on title substrings, so 'Breakfast' matches 'break' and 'Veterans Day assembly' matches 'veteran'. That day shows \"No School — All classes cancelled\" and hides every class.",
+ "Use word boundaries (/\\bbreak\\b/), and fall back to the title check only when the event type is empty or 'event'.",
+ "app.js:912–922"],
+["L3","high","Logic","School-days-left bypasses isNoSchoolEvent and counts wrong",
+ "countSchoolDaysLeft has its own list, which includes first-day and last-day, so the count is 2 short. Year-view quarters count each boundary day twice.",
+ "Build offDays from isNoSchoolEvent, and start each quarter the day after the previous one ends.",
+ "app.js:943–1003, 1794–1797"],
+["L4","high","Logic","The AI Student Packet ignores unchecked classes",
+ "classContext never checks ci.included === false, so unchecking Specials still generates and prints Specials activities.",
+ "Skip slots where included is false.",
+ "app.js:12436–12445"],
+["L5","high","Logic","A cut-off or failed AI stream is treated as success",
+ "callAITextStream ignores stop_reason and SSE error events such as overloaded_error. A 16k-token packet that hits max_tokens is saved half-written with \"✅ ready\".",
+ "Track stop_reason, throw on error events, and warn on max_tokens.",
+ "app.js:546–569, 12463–12473"],
+["L6","med","Logic","Month navigation skips months on the 31st",
+ "setMonth(m+1) on Oct 31 lands on Dec 1. currentDate and currentDayDate also share one Date object, so moving the month moves the Day view too.",
+ "Use new Date(y, m±1, 1), and give each anchor its own Date.",
+ "app.js:1964–1972, 1429–1430"],
+["L7","med","Logic","Opening a search result can land on the wrong month",
+ "new Date(lesson.date) parses as UTC, so in Arizona Oct 1 becomes Sept 30. Only currentDate is set.",
+ "Parse with 'T00:00:00' and set all three anchors.",
+ "app.js:10675, 10682"],
+["L8","med","Logic","The T shortcut doesn't redraw Day or Year view",
+ "goToToday sets the anchors but only re-renders month and week. The toast says \"Jumped to today\" while the old day stays on screen.",
+ "Also call renderDayView() and renderYearView().",
+ "app.js:10437–10443"],
+["L9","med","Logic","Principal view's navigation moves only one date anchor",
+ "Month and week navigation leave currentDayDate behind, day navigation leaves the other two, and exiting preview doesn't restore the principal's own dates.",
+ "Set all three anchors in every branch, and save/restore them around preview.",
+ "app.js:18894–18906, 18691"],
+["L10","med","Logic","Copy Week copies the wrong 7 days in 7-day mode",
+ "It copies offsets 0..6 (Mon through the next Sun), but the week view shows −1..5 (Sun–Sat).",
+ "Use the same offsets as renderWeek.",
+ "app.js:17598–17604, 17638"],
+["L11","med","Logic","AI tools refuse teachers who use a shared key",
+ "Quiz, Differentiation, Curriculum, Scan and Retirement check aiSettings.apiKey, but the buttons appear based on hasEffectiveAiKey(). The button shows, then says \"Add your API key first\".",
+ "Use hasEffectiveAiKey() / getEffectiveAiConfig() everywhere.",
+ "app.js:13543, 14761, 15432, 16530, 17758, 18182"],
+["L12","med","Logic","Several features ignore no-school days",
+ "The Excel import preview, weekly recurring lessons, curriculum stubs, Year-view shading and the week/day PDFs each use their own rule or none. Lessons land on Thanksgiving and winter break.",
+ "Route all of them through isOffDay() / isNoSchoolEvent().",
+ "app.js:8819–8841, 11400–11405, 16651, 1709–1733, 5238–5285"],
+["L13","med","Logic","AI Lesson Fill writes objectives to a field the lesson form doesn't show",
+ "Lesson Fill saves objective, but the lesson form reads learningTarget, so generated objectives never appear.",
+ "Write learningTarget.",
+ "app.js:10178, 3483–3486"],
+["L14","med","Logic","A pacing cell like \"Day 2 & 3\" imports only one lesson",
+ "The prompt asks for two entries on one date, but the import skips any date that already has a lesson for that class.",
+ "Skip only lessons that existed before the import, or bump the second entry to the next school day.",
+ "app.js:7413, 8367–8375, 8410"],
+["L15","med","Logic","The \"All classes\" attendance printout drops records",
+ "dateMap is keyed by date only, so a second class on the same date overwrites the first.",
+ "Key the map by class and date.",
+ "app.js:14354"],
+["L16","med","Logic","Communications and seating carry over into the next school year",
+ "Communications reload only when the list is empty, and seating is replaced only when a doc exists.",
+ "Reset both when the year loads.",
+ "app.js:14879–14880"],
+["L17","med","Logic","Teachers never see principal feedback",
+ "loadTeacherPrincipalComments is never called, and the rules would reject its read:true update.",
+ "Add a teacher inbox, and allow the teacher to update read.",
+ "app.js:19047 · firestore.rules"],
+["L18","med","Logic","Friend and shared-resource listeners may never start",
+ "They start once, 1 s after page load. If sign-in hasn't finished by then, they return early and never subscribe. They are never unsubscribed on sign-out and have no error handler.",
+ "Start and stop them from onAuthStateChanged.",
+ "app.js:6544–6567, 9874, 10293–10318"],
+["L19","med","Logic","A shared PDF never appears in the recipient's page picker",
+ "The share payload leaves out storageUrl, and the picker requires it.",
+ "Include storageUrl, or re-resolve it from storagePath when importing.",
+ "app.js:9848–9857, 12541"],
+["L20","med","Logic","Long AI requests may be cut off at 60 s and then sent twice (unverified)",
+ "Hosting rewrites to Cloud Functions time out at 60 s regardless of the function's own timeout. If the 504 response is HTML, aiRequest falls back and sends the whole prompt again directly.",
+ "Test with a 16k packet. If it is cut off, call the function's own URL for long jobs, and treat 5xx as a failure rather than a reason to fall back.",
+ "app.js:441–470"],
+["L21","low","Logic","The gradebook average uses only the 25 newest assignments",
+ "The on-screen average differs from the CSV and report averages.",
+ "Compute the average before trimming the list for display.",
+ "app.js:15196"],
+["L22","low","Logic","Copy Lesson drops slotIndex",
+ "A Session 2 lesson is copied into Session 1, possibly hidden behind an existing lesson.",
+ "Copy slotIndex and check for a conflict.",
+ "app.js:16750–16762"],
+["L23","low","Logic","Some dates are stamped in UTC",
+ "Messages, the week-PDF file name and Teams/Classroom due dates use toISOString(). After 5 pm in Arizona they show tomorrow's date.",
+ "Use formatDate().",
+ "app.js:7096, 5327, 15728, 16456"],
+["L24","low","Logic","The \"2 activities per class\" rule applies only to the Mixed style",
+ "The Worksheets, Activities and Reading styles set no count.",
+ "Put the count in the shared part of the prompt.",
+ "app.js:12429"],
+["L25","low","Logic","The year newsletter drops calendar events",
+ "Key events are capped at 20, the sort crashes on an event without startDate, and only 1,000 characters of one doc per subject are used.",
+ "Raise the cap, guard the sort, and summarize more of each document.",
+ "app.js:9481–9502"],
+["L26","low","Logic","Shortcuts during principal preview write to the principal's own account",
+ "N, E and C stay active while previewing a teacher.",
+ "Disable the edit shortcuts while in preview.",
+ "app.js:~10380"],
+["L27","low","Logic","The Help footer shows v5.18.0",
+ "window.APP_VERSION is never defined.",
+ "Define it once from the header version.",
+ "app.js:19336"],
+["L28","low","Logic","Dismiss on a shared resource only marks it read",
+ "The ✕ button doesn't remove the item.",
+ "Delete the item, or filter out read items.",
+ "app.js:9970"],
+["L29","low","Logic","PDF documents are never released from memory",
+ "pdf.destroy() is never called, and the picker renders up to 300 pages. Changing the resource mid-render mixes thumbnails from two PDFs.",
+ "Destroy each document and cancel stale renders.",
+ "app.js:7353, 12648, 12737"],
+["L30","low","Logic","Two toasts in a row share one timer",
+ "The second toast disappears early, and #toast has no aria-live.",
+ "Clear the previous timeout and add aria-live=\"polite\".",
+ "app.js:892"],
+
+// ---------- PRINT ----------
+["P1","med","Print","Plany branding appears in printouts",
+ "The single lesson plan has a 'Plany' header, and the sub packet and Emergency Sub Plan footers say 'Plany · …'.",
+ "Remove all three.",
+ "app.js:5480, 12372, 13262"],
+["P2","med","Print","Printing crashes when pop-ups are blocked",
+ "window.open returns null and win.document throws. The code's own comment says pop-ups are often blocked in the desktop app.",
+ "Fall back to printHtmlViaIframe, as printDayFull already does.",
+ "app.js:2868, 5494, 9350, 12384, 12500, 12991"],
+["P3","low","Print","Some print views break the margin rules",
+ "The newsletter body has max-width:680px; the weekly and monthly newsletters use v=0.5in; printPickedPagesPacket skips preparePrintDoc; attendance and seating printouts add body padding of 20px.",
+ "Let the print shell own the margins everywhere.",
+ "app.js:9354, 12771–12836, 14384, 14556"],
+["P4","low","Print","Week and day PDFs ignore holidays and extra sessions",
+ "Holidays print as \"No lesson planned\", and classes with multiple sessions print only one lesson.",
+ "Use isOffDay() and findLessonForSlot.",
+ "app.js:5084–5105, 5238–5285"],
+["P5","low","Print","Unescaped titles break print layouts",
+ "A title or class name containing < breaks the page, and AI HTML goes into the print window unescaped.",
+ "Escape user text, and sanitize AI HTML with an allow-list.",
+ "app.js:5480, 2798, 9262–9284, 12377, 12517"],
+
+// ---------- NATIVE ----------
+["N1","med","Native","The Android and iOS apps never use the AI proxy",
+ "The relative /api/ai path goes to the app's local asset server, so native builds always call Anthropic directly and fail on school networks. https://localhost is also missing from the allow-list.",
+ "Use https://plany.work/api/ai when running natively, and add https://localhost.",
+ "app.js:444–470 · functions/index.js:147–153"],
+["N2","low","Native","Signed-out launches sit on the splash screen for 4 s",
+ "plany:auth-resolved fires only when a user is signed in.",
+ "Dispatch it in the signed-out branch too.",
+ "app.js:1152, 1173"],
+["N3","low","Native","The Android back button exits the app from any screen",
+ "canGoBack is always false in a single-page app.",
+ "Close the open modal or panel first, then go back to the previous view, and exit only from the home view.",
+ "capacitor-bridge.js"],
+["N4","low","Native","Microsoft sign-in breaks inside the native app",
+ "MS_REDIRECT is hardcoded to plany.work. This is moot once S1 is fixed.",
+ "",
+ "app.js:MS_REDIRECT"],
+
+// ---------- UI / A11Y ----------
+["U1","high","UI & accessibility","The phone month view is unreadable and hard to tap",
+ "An inline <style> block with 16 !important rules forces class pills to 7.2 px text. At 390 px there are 35 targets under 44 px, and the class pills are 66×13 px.",
+ "Delete the block. On phones, show dots and a count in each day, and make the whole day open Day view.",
+ "index.html:34–76 · styles.css:1146"],
+["U2","high","UI & accessibility","Pinch-zoom is disabled",
+ "maximum-scale=1, user-scalable=no fails WCAG 1.4.4, and together with U1 the month grid can't be read on a phone.",
+ "Remove both from the viewport meta.",
+ "index.html:5"],
+["U3","high","UI & accessibility","Modals aren't accessible dialogs",
+ "None of the 36 modals has role=dialog or aria-modal, a focus trap or focus return. Tab leaves the search modal after 11 presses. The help panel is aria-hidden but still focusable.",
+ "Write one openModal() helper that handles all of this and sets inert on the page behind.",
+ "index.html (36 .modal) · app.js 141 inline openers"],
+["U4","high","UI & accessibility","No password reset, and login errors are raw Firebase text",
+ "There is no Forgot password link. Errors read \"Firebase: Error (auth/invalid-credential)\".",
+ "Add sendPasswordResetEmail and map error codes to plain sentences, as the Microsoft flow already does.",
+ "app.js:1290, 1316"],
+["U5","med","UI & accessibility","Form labels, icon buttons and the calendar aren't accessible",
+ "172 of 303 fields have no associated label. 72 icon-only buttons have no aria-label. Calendar days and pills are clickable divs, so the calendar can't be used with a keyboard.",
+ "Add for= to labels and aria-label to icon buttons, and render day cells as buttons.",
+ "index.html:366–367, 219, 212"],
+["U6","med","UI & accessibility","The bottom nav overflows on phones",
+ "8 tabs plus the version string. At 390 px, CLASSES and STUDENTS run together and v6.0.1 overlaps the AI tab.",
+ "Use 5 tabs plus a More menu, and move the version into Settings.",
+ "index.html:1339–1375"],
+["U7","med","UI & accessibility","Headers and toolbars take up too much screen",
+ "At 1440×900 the month view shows only 3 weeks. On phones the grid starts about 370 px down and the 6th row sits under the nav. The empty Sunday card says \"No classes today\" for any day.",
+ "Merge the school-year strip into the toolbar, narrow the weekend columns, and change the text to \"No classes\".",
+ "app.js:2111"],
+["U8","med","UI & accessibility","Light Material colors are still in the dark theme",
+ "The sub-day buttons use #e3f2fd / #90caf9 / #1565c0 with !important. Some inline badges use the old failing green and red with white text (about 2:1 contrast).",
+ "Move them to the v6.0.0 tokens.",
+ "styles.css:6338–6354, 6100–6480 · app.js:8316, 4723, 12200"],
+["U9","med","UI & accessibility","The design tokens exist but are barely used",
+ "styles.css uses var(--text-*) twice against 496 rem literals, has 333 hex values outside :root and 139 !important. index.html has 340 inline style attributes.",
+ "Run a codemod that swaps literal values equal to a token for var(), and add stylelint rules.",
+ "styles.css · index.html"],
+["U10","med","UI & accessibility","No reduced-motion support",
+ "There are 13 keyframe animations, 10 of them infinite, and no prefers-reduced-motion query.",
+ "Add a global reduced-motion reset.",
+ "styles.css"],
+["U11","low","UI & accessibility","Native pop-ups are used for decisions",
+ "19 confirm(), 2 alert() (one shows a document preview) and a prompt() for the Azure client ID.",
+ "Use one styled confirm dialog that says what will be lost.",
+ "app.js:5962, 15508"],
+["U12","low","UI & accessibility","Naming and small layout inconsistencies",
+ "The AI tab opens \"AI & Settings\". The sub feature appears under 4 different names. The \"5d\" toggle label is unclear. Heading levels skip, and logout is one tap next to the profile.",
+ "Pick one name for each feature and use it everywhere.",
+ "index.html:334, 589, 1138, 1306"],
+
+// ---------- PERF / PWA ----------
+["W1","med","Performance & PWA","Heavy libraries block every page load",
+ "pdf.js, jsPDF and SheetJS (about 900 KB parsed) load synchronously in <head>, even on the login screen.",
+ "Add defer to app.js and Firebase, and load the PDF and Excel libraries only when they are needed.",
+ "index.html:79–84"],
+["W2","med","Performance & PWA","2,473 DOM nodes on the login page",
+ "Every view and all 36 modals are static markup.",
+ "Build rarely used modals (Moodle, SIS, Teams, grade settings) when they are opened.",
+ "index.html"],
+["W3","med","Performance & PWA","Install shortcuts do nothing, and the manifest is incomplete",
+ "?action=add-lesson and ?view=week are never handled. The manifest has no id or scope, no screenshots and only SVG maskable icons. theme_color doesn't match the meta tag.",
+ "Handle both shortcut URLs, add id and scope, add PNG maskable icons and screenshots, and align the colors.",
+ "manifest.json · app.js:16297"],
+["W4","med","Performance & PWA","Offline support is fragile",
+ "Firebase and CDN scripts are never cached by the service worker. The cached font URL doesn't match the one requested. POST /api/ai falls into the cache branch.",
+ "Add if (request.method !== 'GET') return, precache Firebase, and runtime-cache the CDN libraries.",
+ "sw.js:44–50"],
+["W5","low","Performance & PWA","Small asset savings",
+ "12 help screenshots (about 520 KB) have no lazy loading. The 800 font weight is loaded but barely used.",
+ "Add loading=\"lazy\", convert the screenshots to WebP, and drop the 800 weight.",
+ "public/help-shots"]
+];
+
+const SEV = {crit:"Critical",high:"High",med:"Medium",low:"Low"};
+const AREAS = ["Security","Data loss","Logic","Print","Native","UI & accessibility","Performance & PWA"];
+let done = {};
+try { done = JSON.parse(localStorage.getItem("plany-audit-done") || "{}"); } catch(e) {}
+const save = () => { try { localStorage.setItem("plany-audit-done", JSON.stringify(done)); } catch(e) {} };
+let sev = "all", hideDone = false, q = "";
+
+const tiles = document.getElementById("tiles");
+Object.keys(SEV).forEach(k => {
+  const n = F.filter(f => f[1] === k).length;
+  tiles.insertAdjacentHTML("beforeend", `<div class="tile ${k}"><b>${n}</b><span>${SEV[k]}</span></div>`);
+});
+
+const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+
+function render(){
+  const list = document.getElementById("list");
+  let shown = 0, html = "";
+  AREAS.forEach(area => {
+    const items = F.filter(f => f[2] === area)
+      .filter(f => sev === "all" || f[1] === sev)
+      .filter(f => !hideDone || !done[f[0]])
+      .filter(f => !q || f.join(" ").toLowerCase().includes(q));
+    if (!items.length) return;
+    shown += items.length;
+    html += `<div class="group"><h3>${area} <small>${items.length}</small></h3>` +
+      items.map(f => `<article class="item s-${f[1]}${done[f[0]]?" is-done":""}">
+        <input type="checkbox" id="c-${f[0]}" data-id="${f[0]}" ${done[f[0]]?"checked":""} aria-label="Mark ${f[0]} fixed">
+        <div class="top"><span class="pill">${SEV[f[1]]}</span><span class="id">${f[0]}</span><label class="ttl" for="c-${f[0]}">${esc(f[3])}</label></div>
+        <p class="why">${esc(f[4])}</p>
+        <div style="display:flex;flex-direction:column;gap:4px">${f[5]?`<p class="fix"><b>Fix:</b> ${esc(f[5])}</p>`:""}<p class="ref">${esc(f[6])}</p></div>
+      </article>`).join("") + `</div>`;
+  });
+  list.innerHTML = html || `<p class="empty">No findings match.</p>`;
+  document.getElementById("count").textContent = `${shown} of ${F.length} · ${Object.values(done).filter(Boolean).length} fixed`;
+}
+document.querySelectorAll(".chip[data-sev]").forEach(b => b.addEventListener("click", () => {
+  sev = b.dataset.sev;
+  document.querySelectorAll(".chip[data-sev]").forEach(x => x.setAttribute("aria-pressed", x === b));
+  render();
+}));
+document.getElementById("hide-done").addEventListener("click", e => {
+  hideDone = !hideDone; e.currentTarget.setAttribute("aria-pressed", hideDone); render();
+});
+document.getElementById("q").addEventListener("input", e => { q = e.target.value.trim().toLowerCase(); render(); });
+document.getElementById("list").addEventListener("change", e => {
+  if (!e.target.dataset.id) return;
+  done[e.target.dataset.id] = e.target.checked; save(); render();
+});
+render();
+</script>

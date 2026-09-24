@@ -1,0 +1,19 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // v6.1.0: only the owner can read or write through the SDK. Every file the
+    // app opens -- including shared curriculum -- is fetched by its download
+    // URL, which carries its own access token and is not affected by these
+    // rules. Before this, any signed-in user could read any teacher's files.
+    match /users/{userId}/{allPaths=**} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null
+                   && request.auth.uid == userId
+                   // 200 MB cap; null-safe so resumable uploads aren't blocked
+                   && (request.resource.size == null || request.resource.size < 200 * 1024 * 1024)
+                   // No web pages or scripts (they could be served from a download URL)
+                   && (request.resource.contentType == null ||
+                       !request.resource.contentType.matches('(?i)(text/html|application/(x-)?javascript|text/javascript|image/svg\\+xml).*'));
+    }
+  }
+}

@@ -1,0 +1,211 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // v6.0.2 -- a display name written by one user and shown to another
+    // must be a short string with no markup. The app escapes these too;
+    // this is the second line of defence.
+    function plainName(v) {
+      return v is string && v.size() <= 120 && !v.matches('.*[<>].*');
+    }
+    function optPlainName(data, field) {
+      return !(field in data) || data[field] == null || plainName(data[field]);
+    }
+    // Sender/recipient can't be rewritten after the doc is created.
+    function partiesUnchanged() {
+      return request.resource.data.fromUid == resource.data.fromUid &&
+             request.resource.data.toUid   == resource.data.toUid;
+    }
+
+    // A principal with an ACCEPTED link to this teacher.
+    function isLinkedPrincipal(teacherUid) {
+      return exists(/databases/$(database)/documents/principalLinks/$(request.auth.uid + '_' + teacherUid)) &&
+             get(/databases/$(database)/documents/principalLinks/$(request.auth.uid + '_' + teacherUid)).data.status == 'accepted';
+    }
+
+    // Users collection -- top-level profile.
+    // v6.1.0: any signed-in user can fetch ONE profile (friend/username/email
+    // lookups all use .limit(1)), but nobody can list or harvest the whole
+    // collection any more.
+    match /users/{userId} {
+      allow get: if request.auth != null;
+      allow list: if request.auth != null && request.query.limit <= 1;
+      allow write: if request.auth != null && request.auth.uid == userId;
+
+      // Subcollections: owner has full access.
+      match /{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // v6.1.0: a linked principal can read ONLY what the teacher preview
+      // shows -- the school-year setting and each year's classes, lessons,
+      // events and breaks. Not students, grades, attendance, friends, tokens
+      // or other settings.
+      match /settings/schoolYear {
+        allow read: if request.auth != null && isLinkedPrincipal(userId);
+      }
+      match /years/{year} {
+        allow read: if request.auth != null && isLinkedPrincipal(userId);
+      }
+      match /years/{year}/classes/{docId} {
+        allow read: if request.auth != null && isLinkedPrincipal(userId);
+      }
+      match /years/{year}/lessons/{docId} {
+        allow read: if request.auth != null && isLinkedPrincipal(userId);
+      }
+      match /years/{year}/events/{docId} {
+        allow read: if request.auth != null && isLinkedPrincipal(userId);
+      }
+      match /years/{year}/settings/breaks {
+        allow read: if request.auth != null && isLinkedPrincipal(userId);
+      }
+    }
+
+    // Principal link requests
+    match /principalLinks/{linkId} {
+      allow read: if request.auth != null && (
+        resource.data.principalUid == request.auth.uid ||
+        resource.data.teacherUid  == request.auth.uid
+      );
+      // Principal initiates the link; it must start as pending and the doc ID
+      // must match {principalUid}_{teacherUid} so the read rule lookup works.
+      allow create: if request.auth != null &&
+        request.resource.data.principalUid == request.auth.uid &&
+        request.resource.data.status == 'pending' &&
+        optPlainName(request.resource.data, 'principalName') &&
+        linkId == request.auth.uid + '_' + request.resource.data.teacherUid;
+      // Only the TEACHER can change status (accept/decline). The principal
+      // cannot self-accept a pending link.
+      allow update: if request.auth != null &&
+        resource.data.teacherUid == request.auth.uid &&
+        request.resource.data.principalUid == resource.data.principalUid &&
+        request.resource.data.teacherUid  == resource.data.teacherUid;
+      allow delete: if request.auth != null && (
+        resource.data.principalUid == request.auth.uid ||
+        resource.data.teacherUid  == request.auth.uid
+      );
+    }
+
+    // Principal comments on teacher lessons
+    match /principalComments/{commentId} {
+      allow read: if request.auth != null && (
+        resource.data.principalUid == request.auth.uid ||
+        resource.data.teacherUid   == request.auth.uid
+      );
+      // A comment needs an accepted link between the two.
+      allow create: if request.auth != null &&
+        request.resource.data.principalUid == request.auth.uid &&
+        optPlainName(request.resource.data, 'principalName') &&
+        exists(/databases/$(database)/documents/principalLinks/$(request.auth.uid + '_' + request.resource.data.teacherUid)) &&
+        get(/databases/$(database)/documents/principalLinks/$(request.auth.uid + '_' + request.resource.data.teacherUid)).data.status == 'accepted';
+      allow update, delete: if request.auth != null &&
+        resource.data.principalUid == request.auth.uid;
+    }
+
+    // Friend requests
+    match /friendRequests/{requestId} {
+      allow read: if request.auth != null &&
+        (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
+      allow create: if request.auth != null && request.resource.data.fromUid == request.auth.uid &&
+        request.resource.data.toUid is string && request.resource.data.toUid != request.auth.uid &&
+        optPlainName(request.resource.data, 'fromName');
+      allow update: if request.auth != null &&
+        (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid) &&
+        partiesUnchanged() && optPlainName(request.resource.data, 'fromName');
+      allow delete: if request.auth != null &&
+        (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
+    }
+
+    // Shared lessons
+    match /sharedLessons/{lessonId} {
+      allow read: if request.auth != null &&
+        (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
+      allow create: if request.auth != null && request.resource.data.fromUid == request.auth.uid &&
+        request.resource.data.toUid is string && request.resource.data.toUid != request.auth.uid &&
+        optPlainName(request.resource.data, 'fromName');
+      allow update: if request.auth != null &&
+        (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid) &&
+        partiesUnchanged() && optPlainName(request.resource.data, 'fromName');
+      allow delete: if request.auth != null &&
+        (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
+    }
+
+    // Shared curriculum resources
+    match /sharedCurriculum/{docId} {
+      allow read: if request.auth != null &&
+        (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
+      allow create: if request.auth != null && request.resource.data.fromUid == request.auth.uid &&
+        request.resource.data.toUid is string && request.resource.data.toUid != request.auth.uid &&
+        optPlainName(request.resource.data, 'fromName');
+      allow update: if request.auth != null &&
+        (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid) &&
+        partiesUnchanged() && optPlainName(request.resource.data, 'fromName');
+      allow delete: if request.auth != null &&
+        (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
+    }
+
+    // AI key sharing -- lets a user grant other users access to their own
+    // AI API key so those users get working AI features without entering
+    // a key of their own.
+    //
+    // apiKeyGrants/{adminUid}_{granteeEmail} -- who has been granted access.
+    match /apiKeyGrants/{grantId} {
+      allow read: if request.auth != null && (
+        resource.data.adminUid == request.auth.uid ||
+        resource.data.granteeEmail == request.auth.token.email
+      );
+      // The sharer creates the grant; the doc ID must match
+      // {adminUid}_{granteeEmail} so the apiKeyShares lookup rule works.
+      allow create: if request.auth != null &&
+        request.resource.data.adminUid == request.auth.uid &&
+        grantId == request.auth.uid + '_' + request.resource.data.granteeEmail;
+      allow update, delete: if request.auth != null && resource.data.adminUid == request.auth.uid;
+    }
+
+    // apiKeyShares/{adminUid} -- the actual provider + key value. Only the
+    // owner can write it; readable by the owner or by anyone with an active
+    // grant from that owner.
+    match /apiKeyShares/{ownerUid} {
+      // v6.1.0: grantees may read this doc only once it no longer carries a
+      // raw key (the owner's app moves the key to aiKeys/ on next login).
+      allow read: if request.auth != null && (
+        request.auth.uid == ownerUid ||
+        (
+          !('apiKey' in resource.data) &&
+          exists(/databases/$(database)/documents/apiKeyGrants/$(ownerUid + '_' + request.auth.token.email)) &&
+          get(/databases/$(database)/documents/apiKeyGrants/$(ownerUid + '_' + request.auth.token.email)).data.status == 'active'
+        )
+      );
+      allow write: if request.auth != null && request.auth.uid == ownerUid;
+    }
+
+    // clientErrors -- crash reports from the app (v6.3.0). Signed-in users can
+    // add their own, small reports; nobody can read them from the app (view
+    // them in the Firebase console).
+    match /clientErrors/{id} {
+      allow create: if request.auth != null &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.message is string && request.resource.data.message.size() <= 500 &&
+        request.resource.data.stack is string && request.resource.data.stack.size() <= 2000 &&
+        request.resource.data.keys().size() <= 10;
+      allow read, update, delete: if false;
+    }
+
+    // aiKeys/{uid} -- the account's own AI provider key (v6.1.0). Readable
+    // and writable ONLY by its owner. The aiProxy function reads it with the
+    // Admin SDK when the owner has granted someone access.
+    match /aiKeys/{ownerUid} {
+      allow read, write: if request.auth != null && request.auth.uid == ownerUid;
+    }
+
+    // Friends subcollection: owned by the wildcard rule under /users/{userId}
+    // above (owner has full access there already). Accepting or removing a
+    // friend also needs to write the single entry that represents YOURSELF
+    // inside the OTHER person's friends list -- this rule additively grants
+    // exactly that one write, keyed to your own uid, and nothing else in
+    // their list.
+    match /users/{userId}/friends/{friendId} {
+      allow write: if request.auth != null && request.auth.uid == friendId;
+    }
+  }
+}

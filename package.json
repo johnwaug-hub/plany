@@ -1,0 +1,35 @@
+{
+  "name": "plany",
+  "version": "4.9.5",
+  "description": "Lesson Planning Made Simple for Teachers",
+  "private": true,
+  "scripts": {
+    "build": "echo 'No build step \u2014 static site'",
+    "cap:add:android": "npx cap add android",
+    "cap:add:ios": "npx cap add ios",
+    "cap:sync": "npx cap sync",
+    "cap:open:android": "npx cap open android",
+    "cap:open:ios": "npx cap open ios",
+    "cap:run:android": "npx cap run android",
+    "cap:run:ios": "npx cap run ios",
+    "cap:update": "npx cap update",
+    "deploy:rules": "firebase deploy --only firestore:rules,storage --project plany-waugs",
+    "deploy:functions": "cd functions && npm install && cd .. && firebase deploy --only functions --project plany-waugs --force",
+    "deploy:hosting": "npm test && firebase deploy --only hosting --project plany-waugs",
+    "deploy": "npm test && npm run deploy:rules && npm run deploy:functions && npm run deploy:hosting",
+    "test": "node --test tests/logic.test.js"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/app": "^6.0.0",
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/haptics": "^6.0.0",
+    "@capacitor/ios": "^6.0.0",
+    "@capacitor/keyboard": "^6.0.0",
+    "@capacitor/splash-screen": "^6.0.0",
+    "@capacitor/status-bar": "^6.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.0.0"
+  }
+}

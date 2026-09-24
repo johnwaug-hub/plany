@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+functions/node_modules/
+
+# Firebase CLI cache
+.firebase/
+*.log
+
+# Old manual backups (git history replaces these going forward)
+_backups/
+
+# Secrets -- never commit
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+key.properties
+*adminsdk*.json
+*service-account*.json
+
+# Android build output
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+
+# Only npm is used for this project
+pnpm-lock.yaml
