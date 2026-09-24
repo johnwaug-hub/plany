@@ -2,6 +2,48 @@
 
 A modern lesson planning app for teachers with an 80's inspired design.
 
+## What's New in v6.3.0 - Saved AI Work, Phone Calendar, Accessibility 💾📱
+
+**Everything the AI writes is saved where you made it** (`users/{uid}/years/{year}/aiOutputs`)
+- **Newsletters** (week, month, year) and **anchor charts** are saved per week/month/year and shown again
+  when you reopen them, with the date they were made. Generating again replaces the saved copy.
+- **Quizzes, rubrics and differentiation plans** are saved to a list under each generator: open one to see
+  or re-print it, or delete it.
+- **Teaching stats** are saved as soon as they're calculated (they used to vanish unless you saved the
+  profile form).
+- Lesson Fill, student packets, the curriculum generator and the calendar/pacing imports already saved
+  into your lessons, sub days and events.
+
+**Phone month view**
+- Below 600px each day shows one dot per class (filled = planned, hollow = not yet) plus a square per event;
+  tap anywhere on the day to open it. The inline style block that forced 7px text is gone.
+- Pinch-zoom works again. The version tag no longer crowds the bottom nav on phones. Empty week-view days
+  say "No classes" instead of "No classes today".
+
+**Accessibility**
+- Every popup is a real dialog: focus moves into it, Tab stays inside, and focus returns to the button that
+  opened it (on touch screens it doesn't pop the keyboard).
+- Calendar days can be reached with Tab and opened with Enter; screen readers hear e.g. "Tuesday, October 6,
+  3 of 5 classes planned, 1 event".
+- Icon-only buttons (×, 🖨️, ✕…) have spoken names; toasts are announced; animations respect "reduce motion".
+
+**Faster loading**
+- PDF.js, jsPDF, SheetJS and JSZip (about 1 MB) no longer block the login screen. They load when a feature
+  needs them and quietly in the background a few seconds after sign-in.
+- The home-screen shortcuts **Add Lesson** and **This Week** now work. Manifest gains `id`/`scope`, and the
+  theme colour matches the app.
+
+**Behind the scenes**
+- **Version control:** `C:\Plany` is now a git repository (`git log` to see history). `_backups/` is no
+  longer needed going forward.
+- **Tests:** `npm test` checks the date and no-school logic and the HTML-escaping helpers (runs in Arizona
+  time). `npm run deploy` and `npm run deploy:hosting` run the tests first and stop if one fails.
+- **Error reports:** uncaught errors are logged to the `clientErrors` collection (view in the Firebase
+  console) -- at most 10 per page load, never shown to other users.
+- Offline caching (Firestore persistence) was already on; no change needed.
+
+**Deploy:** rules changed (new `clientErrors` collection) -- run `npm run deploy`.
+
 ## What's New in v6.2.0 - Correctness Pass ✅
 
 Phase 2 of the v6.0.1 audit. Hosting only -- no rules or functions changes.

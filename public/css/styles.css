@@ -9507,3 +9507,17 @@ a:focus-visible,
 }
 
 .modal-content:focus { outline: none; }
+
+/* v6.3.0 -- 7 nav tabs on a 390px phone: let the labels shrink instead of
+   running together ("CLASSESSTUDENTS") */
+@media (max-width: 440px) {
+    .bottom-nav .nav-item { min-width: 0; flex: 1 1 0; padding-left: 2px; padding-right: 2px; }
+    .bottom-nav .nav-label {
+        font-size: 11px;
+        letter-spacing: -0.01em;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+}

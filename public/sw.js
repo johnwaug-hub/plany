@@ -1,5 +1,5 @@
-// PLANY Service Worker - v6.2.0
-const CACHE_NAME = 'plany-v6.2.0';
+// PLANY Service Worker - v6.3.0
+const CACHE_NAME = 'plany-v6.3.0';
 const STATIC_ASSETS = [
     '/',
     '/index.html',
@@ -10,7 +10,7 @@ const STATIC_ASSETS = [
     '/manifest.json',
     '/icons/icon-192.svg',
     '/icons/icon-512.svg',
-    'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'
+    'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap'
 ];
 
 // Install - cache assets, then WAIT. (v6.0.2) Calling skipWaiting() here

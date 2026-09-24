@@ -1,4 +1,4 @@
-// PLANY - Main Application v6.2.0
+// PLANY - Main Application v6.3.0
 // ==================================================
 
 // Service Worker Update Handler - ensures fresh content
