@@ -63,6 +63,7 @@ const AI_UPSTREAMS = {
 // open relay to the AI providers by anyone who finds the URL.
 const AI_ALLOWED_ORIGINS = [
     'https://plany.work',
+    'https://www.plany.work',      // v6.3.1: the www address serves the same app
     'https://plany-waugs.web.app',
     'https://plany-waugs.firebaseapp.com',
     'capacitor://localhost',   // Capacitor iOS
@@ -102,7 +103,10 @@ exports.aiProxy = functions
 
         // Same-origin calls through the Hosting rewrite send no Origin header
         // at all; those are fine. A cross-origin call must be on the list.
-        if (origin && !allowed) { res.status(403).json({ error: 'origin_not_allowed' }); return; }
+        if (origin && !allowed) {
+            res.status(403).json({ error: { type: 'origin_not_allowed', message: 'AI only works when Plany is opened at plany.work. Open https://plany.work and try again.' } });
+            return;
+        }
 
         if (origin) {
             res.set('Access-Control-Allow-Origin', origin);

@@ -2,6 +2,15 @@
 
 A modern lesson planning app for teachers with an 80's inspired design.
 
+## What's New in v6.3.1 - AI Works From www.plany.work 🔧
+
+- **Fixed: "Anthropic Claude API error 403" on other devices.** Plany also answers at `www.plany.work`, but the
+  AI proxy only accepted `plany.work`, so AI failed on any device that had opened the www address. The proxy
+  now accepts both, and `www.plany.work` redirects to `plany.work` so there's one sign-in and one saved key.
+- AI errors now say what went wrong and what to do (sign in again, check your key, try again later) instead of
+  a bare status code.
+- **Deploy:** functions changed -- `npm run deploy` (or `npm run deploy:functions` then `npm run deploy:hosting`).
+
 ## What's New in v6.3.0 - Saved AI Work, Phone Calendar, Accessibility 💾📱
 
 **Everything the AI writes is saved where you made it** (`users/{uid}/years/{year}/aiOutputs`)

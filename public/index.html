@@ -2,6 +2,13 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <script>
+      // v6.3.1: one address only. www.plany.work served the app too, but with
+      // its own separate sign-in and saved AI key, and the AI proxy refused it.
+      if (location.hostname === 'www.plany.work') {
+        location.replace('https://plany.work' + location.pathname + location.search + location.hash);
+      }
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#0F0F23">
     <meta name="description" content="PLANY - Lesson Planning Made Simple for Teachers">
@@ -1328,7 +1335,7 @@
                 <span class="nav-label">Staff</span>
                 <span id="principal-badge" class="unread-badge hidden">0</span>
             </button>
-            <span class="nav-version">v6.3.0</span>
+            <span class="nav-version">v6.3.1</span>
         </nav>
 
 

@@ -1,4 +1,4 @@
-// PLANY - Main Application v6.3.0
+// PLANY - Main Application v6.3.1
 // ==================================================
 
 // Service Worker Update Handler - ensures fresh content
@@ -593,6 +593,19 @@ async function aiRequest(providerId, apiKey, payload, shareFromUid = null) {
     }
 }
 
+// Turn a failed AI response into a sentence a teacher can act on (v6.3.1).
+// Before, anything without error.message showed as a bare "API error 403".
+function aiErrorMessage(body, status, label) {
+    const e = body && body.error;
+    if (e && typeof e === 'object' && e.message) return e.message;
+    if (e === 'origin_not_allowed') return 'AI only works when Plany is opened at plany.work. Open https://plany.work and try again.';
+    if (status === 401) return 'Please sign in to Plany again to use AI features.';
+    if (status === 403) return `${label} refused the request (403). Check that your API key is active in Settings → AI.`;
+    if (status === 429) return `${label} is busy or your usage limit was reached. Wait a minute and try again.`;
+    if (status >= 500) return `${label} is having trouble right now (${status}). Try again in a minute.`;
+    return `${label} API error ${status}`;
+}
+
 async function callAIText({ prompt, tier = 'fast', maxTokens = 2000, imageBase64 = null, imageMediaType = null }) {
     const cfg = getEffectiveAiConfig();
     const providerId = cfg.provider;
@@ -609,7 +622,7 @@ async function callAIText({ prompt, tier = 'fast', maxTokens = 2000, imageBase64
         const resp = await aiRequest(providerId, apiKey, { model, max_tokens: maxTokens, messages: [{ role: 'user', content }] }, shareFrom);
         if (!resp.ok) {
             const err = await resp.json().catch(() => ({}));
-            throw new Error(err?.error?.message || `${provider.label} API error ${resp.status}`);
+            throw new Error(aiErrorMessage(err, resp.status, provider.label));
         }
         const data = await resp.json();
         if (data.stop_reason === 'max_tokens') console.warn('callAIText: response hit max_tokens and may be truncated');
@@ -622,7 +635,7 @@ async function callAIText({ prompt, tier = 'fast', maxTokens = 2000, imageBase64
     const resp = await aiRequest(providerId, apiKey, { model, max_tokens: maxTokens, messages: [{ role: 'user', content }] }, shareFrom);
     if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
-        throw new Error(err?.error?.message || `${provider.label} API error ${resp.status}`);
+        throw new Error(aiErrorMessage(err, resp.status, provider.label));
     }
     const data = await resp.json();
     return data.choices?.[0]?.message?.content || '';
@@ -648,7 +661,7 @@ async function callAITextStream({ prompt, tier = 'quality', maxTokens = 2000, on
     const resp = await aiRequest(providerId, apiKey, body, shareFrom);
     if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
-        throw new Error(err?.error?.message || `${provider.label} API error ${resp.status}`);
+        throw new Error(aiErrorMessage(err, resp.status, provider.label));
     }
 
     const reader = resp.body.getReader();
