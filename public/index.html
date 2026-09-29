@@ -363,23 +363,7 @@
                         <button type="button" class="btn btn-sm btn-ghost" style="font-size:0.72rem;padding:2px 8px;" onclick="toggleUnitStandardsPicker()">📋 Browse CCSS</button>
                     </div>
                     <textarea id="unit-standards" class="form-control" rows="2" placeholder="CCSS or other standard codes..."></textarea>
-                    <div id="unit-standards-picker" class="standards-picker hidden">
-                        <div class="standards-tabs">
-                            <button type="button" class="std-tab active" data-subject="ela" onclick="filterUnitStandards('ela')">📖 ELA</button>
-                            <button type="button" class="std-tab" data-subject="math" onclick="filterUnitStandards('math')">🔢 Math</button>
-                            <button type="button" class="std-tab" data-subject="science" onclick="filterUnitStandards('science')">🔬 Science</button>
-                        </div>
-                        <div class="standards-grade-row">
-                            <label style="font-size:0.72rem;color:var(--text-muted);">Grade:</label>
-                            <div class="standards-grade-btns">
-                                <button type="button" class="std-grade active" data-grade="K"  onclick="setUnitStdGrade('K')">K</button>
-                                <button type="button" class="std-grade active" data-grade="1"  onclick="setUnitStdGrade('1')">1</button>
-                                <button type="button" class="std-grade" data-grade="2"  onclick="setUnitStdGrade('2')">2</button>
-                                <button type="button" class="std-grade" data-grade="3"  onclick="setUnitStdGrade('3')">3</button>
-                            </div>
-                        </div>
-                        <div id="unit-standards-list" class="standards-list"></div>
-                    </div>
+                    <div id="unit-standards-picker" class="standards-picker hidden" data-target="unit-standards"></div>
                 </div>
                 <div class="form-group">
                     <label>Linked Curriculum Docs</label>
@@ -843,6 +827,7 @@
                     <div style="display:flex;gap:8px;align-items:center;">
                         <button class="btn btn-ghost btn-sm" onclick="openScanModal('schedule')" title="Scan a photo to create classes">📷 Scan</button>
                         <button id="export-schedule-btn" class="btn btn-ghost btn-sm" onclick="printWeeklySchedule()" title="Export weekly schedule as PDF">📄 Weekly Schedule</button>
+                        <button class="btn btn-ghost btn-sm" onclick="openCoverageReport()" title="Which standards you've taught, repeated, or not yet covered">📊 Standards coverage</button>
                         <button id="add-class-btn" class="btn btn-primary btn-sm">+ Add Class</button>
                     </div>
                 </div>
@@ -1340,7 +1325,7 @@
                 <span class="nav-label">Staff</span>
                 <span id="principal-badge" class="unread-badge hidden">0</span>
             </button>
-            <span class="nav-version">v6.6.0</span>
+            <span class="nav-version">v6.7.0</span>
         </nav>
 
 
@@ -1489,27 +1474,11 @@
                         <label for="lesson-standards" style="margin:0;">🎯 Standards & Objectives</label>
                         <button type="button" id="browse-standards-btn" class="btn btn-sm btn-ghost"
                             style="font-size:0.72rem;padding:2px 8px;opacity:0.8;"
-                            onclick="toggleStandardsPicker()">📋 Browse CCSS</button>
+                            onclick="toggleStandardsPicker()">📋 Browse standards</button>
                     </div>
                     <textarea id="lesson-standards" rows="3" placeholder="Common Core standards addressed and learning objectives..."></textarea>
                     <!-- Standards Picker Panel -->
-                    <div id="standards-picker" class="standards-picker hidden">
-                        <div class="standards-tabs">
-                            <button type="button" class="std-tab active" data-subject="ela" onclick="filterStandards('ela')">📖 ELA</button>
-                            <button type="button" class="std-tab" data-subject="math" onclick="filterStandards('math')">🔢 Math</button>
-                            <button type="button" class="std-tab" data-subject="science" onclick="filterStandards('science')">🔬 Science</button>
-                        </div>
-                        <div class="standards-grade-row">
-                            <label style="font-size:0.72rem;color:var(--text-muted);">Grade:</label>
-                            <div class="standards-grade-btns">
-                                <button type="button" class="std-grade active" data-grade="K" onclick="setStdGrade('K')">K</button>
-                                <button type="button" class="std-grade" data-grade="1" onclick="setStdGrade('1')">1</button>
-                                <button type="button" class="std-grade" data-grade="2" onclick="setStdGrade('2')">2</button>
-                                <button type="button" class="std-grade" data-grade="3" onclick="setStdGrade('3')">3</button>
-                            </div>
-                        </div>
-                        <div id="standards-list" class="standards-list"></div>
-                    </div>
+                    <div id="standards-picker" class="standards-picker hidden" data-target="lesson-standards"></div>
                 </div>
 
                 <div class="form-row">
@@ -2318,6 +2287,28 @@
     </div>
 
     <!-- Keyboard Shortcuts Modal -->
+    <!-- Standards coverage report (v6.7.0) -->
+    <div id="coverage-modal" class="modal hidden">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2>📊 Standards coverage</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="coverage-controls">
+                <div id="coverage-picker" class="std-controls"></div>
+                <div class="std-controls">
+                    <select id="coverage-class" class="form-control" aria-label="Class"></select>
+                    <input type="date" id="coverage-from" class="form-control" aria-label="From">
+                    <input type="date" id="coverage-to" class="form-control" aria-label="To">
+                    <button type="button" class="btn btn-ghost btn-sm" onclick="printCoverageReport()">🖨️ Print</button>
+                </div>
+            </div>
+            <div id="coverage-summary" class="coverage-summary" aria-live="polite"></div>
+            <div id="coverage-list" class="coverage-list"></div>
+            <p class="std-credit">Standards: Common Standards Project, CC BY 3.0 US. Common Core © NGA Center/CCSSO 2010. NGSS is a registered trademark of WestEd; not affiliated with or endorsing this product.</p>
+        </div>
+    </div>
+
     <!-- Share links (v6.6.0) -->
     <div id="share-modal" class="modal hidden">
         <div class="modal-content modal-medium">

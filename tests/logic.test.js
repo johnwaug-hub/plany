@@ -41,7 +41,7 @@ vm.runInContext([
     extractConst('SCHOOL_DAY_EVENT_TYPES'),
     extractConst('SCHOOL_ACTIVITY_TITLE_RE'),
     ...['formatDate', 'addDays', 'getWeekStart', 'isNoSchoolEvent', 'countSchoolDaysLeft',
-        'escHtml', 'jsArg', 'safeImgUrl', 'planClassShift'].map(extractFunction)
+        'escHtml', 'jsArg', 'safeImgUrl', 'planClassShift', 'codeRegex'].map(extractFunction)
 ].join('\n'), ctx);
 const f = (name) => ctx[name];
 
@@ -157,4 +157,14 @@ test('shift: lessons that would pass the last day are reported, not dropped', ()
     const { lessons, opts } = shiftFixture();
     const r = f('planClassShift')({ ...opts, endDate: '2026-10-09', classLessons: lessons, count: 1 });
     assert.equal(r.overflow, 1);
+});
+
+test('standards coverage: a code only counts as a whole token', () => {
+    const re = f('codeRegex')('1.OA.A.1');
+    assert.equal(re.test('1.OA.A.1'), true);
+    assert.equal(re.test('Standards:\n1.OA.A.1 Use addition'), true);
+    assert.equal(re.test('1.OA.A.10'), false);
+    assert.equal(re.test('1.OA.A.1.a'), true);   // sub-standard counts toward its parent
+    assert.equal(re.test('K.1.OA.A.1'), false);
+    assert.equal(f('codeRegex')('CCSS.ELA-Literacy.RL.1.1').test('ccss.ela-literacy.rl.1.1'), true);
 });

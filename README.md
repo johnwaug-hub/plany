@@ -2,6 +2,24 @@
 
 A modern lesson planning app for teachers with an 80's inspired design.
 
+## What's New in v6.7.0 - Standards for Every State 📚
+
+- **Standards library for all 50 states + DC, Common Core and NGSS, K–12** -- about 590,000 standards from the
+  Common Standards Project (current, non-deprecated sets in ELA, math, science, social studies, computer
+  science, arts, PE and health). Stored as one file per state in `public/standards/` (57 MB, 11.6 MB
+  gzipped) and loaded only when you open a picker (Arizona is ~170 KB compressed).
+- **New picker** in the lesson and unit forms (📋 Browse standards): choose state/framework, grade and subject,
+  search by code or words, tap to add. Your choice is remembered across devices.
+- **📊 Standards coverage** (Classes → 📊 Standards coverage): for any state, grade and subject, shows which
+  standards you've taught, taught more than once, or not yet -- per class and date range -- read straight from
+  the codes already in your lessons (no re-tagging). "+ Plan" on a not-yet standard starts a lesson with it;
+  🖨️ prints the report. A code counts as a whole token (1.OA.A.1 isn't matched by 1.OA.A.10; 1.OA.A.1.a counts
+  toward 1.OA.A.1).
+- Attribution: Common Standards Project, CC BY 3.0 US; Common Core © NGA Center/CCSSO 2010; NGSS is a
+  registered trademark of WestEd, not affiliated with this product.
+- Data rebuild: re-run the fetch/build scripts described in the Plany project doc if standards change.
+- Tests: 13.
+
 ## What's New in v6.6.0 - Shift Lessons, Share Links 🔗⏩
 
 - **⏩ Shift lessons** (Day view → ⏩ Shift). Push lessons later after a snow day or lost day, or pull them
