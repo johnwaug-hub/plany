@@ -8,6 +8,10 @@
     ],
     "rewrites": [
       {
+        "source": "/s/**",
+        "destination": "/share.html"
+      },
+      {
         "source": "/api/ai",
         "function": "aiProxy"
       },

@@ -7,7 +7,7 @@
     "build": "echo 'No build step \u2014 static site'",
     "cap:add:android": "npx cap add android",
     "cap:add:ios": "npx cap add ios",
-    "cap:sync": "npx cap sync",
+    "cap:sync": "node scripts/sync-android-version.js && npx cap sync",
     "cap:open:android": "npx cap open android",
     "cap:open:ios": "npx cap open ios",
     "cap:run:android": "npx cap run android",
@@ -18,7 +18,8 @@
     "deploy:hosting": "npm test && firebase deploy --only hosting --project plany-waugs",
     "deploy": "npm test && npm run deploy:rules && npm run deploy:functions && npm run deploy:hosting",
     "test": "node --test tests/logic.test.js",
-    "deploy:preview": "npm test && firebase hosting:channel:deploy preview --expires 7d --project plany-waugs"
+    "deploy:preview": "npm test && firebase hosting:channel:deploy preview --expires 7d --project plany-waugs",
+    "cap:version": "node scripts/sync-android-version.js"
   },
   "dependencies": {
     "@capacitor/android": "^6.0.0",

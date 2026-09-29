@@ -183,6 +183,25 @@ service cloud.firestore {
       allow write: if request.auth != null && request.auth.uid == ownerUid;
     }
 
+    // publicShares/{token} -- read-only snapshots of a lesson or a week that
+    // anyone with the link can open, no account needed (v6.6.0). The link
+    // stops working when revoked or when it expires (30 days by default,
+    // 90 max). The random token is the only way to find one: no listing,
+    // except an owner listing their own links.
+    match /publicShares/{token} {
+      allow get: if resource.data.revoked != true && request.time < resource.data.expiresAt;
+      allow list: if request.auth != null && resource.data.ownerUid == request.auth.uid;
+      allow create: if request.auth != null &&
+        request.resource.data.ownerUid == request.auth.uid &&
+        token.size() >= 20 &&
+        request.resource.data.expiresAt is timestamp &&
+        request.resource.data.expiresAt <= request.time + duration.value(91, 'd') &&
+        request.resource.data.kind in ['lesson', 'week'];
+      allow update: if request.auth != null && resource.data.ownerUid == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['revoked']);
+      allow delete: if request.auth != null && resource.data.ownerUid == request.auth.uid;
+    }
+
     // clientErrors -- crash reports from the app (v6.3.0). Signed-in users can
     // add their own, small reports; nobody can read them from the app (view
     // them in the Firebase console).

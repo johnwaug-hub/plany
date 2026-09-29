@@ -664,6 +664,7 @@
                     <button id="print-week-btn" class="btn btn-icon" title="Print Week">🖨️</button>
                     <button id="toggle-weekends-week-btn" class="btn btn-icon btn-toggle-weekends" title="Hide weekends">5d</button>
                     <button id="copy-week-btn" class="btn btn-sm btn-secondary" title="Copy this week's lessons to another week" onclick="openCopyWeekPicker()">📋 Copy Week</button>
+                    <button id="share-week-btn" class="btn btn-sm btn-secondary" title="Share a read-only link to this week's plans" onclick="createShareLink('week')">🔗 Share</button>
                     <button id="newsletter-week-btn" class="btn btn-sm btn-newsletter" title="Generate Weekly Parent Newsletter">📰 Newsletter</button>
                     <button id="anchor-charts-week-btn" class="btn btn-sm btn-secondary" title="AI suggests anchor charts for this week's learning">🖼️ Anchor Charts</button>
                     <button id="emergency-sub-btn" class="btn btn-sm btn-secondary" title="Build up to 5 ready-to-go weekday sub plans" onclick="openEmergencySubPlans()">🆘 Emergency Sub Plans</button>
@@ -693,6 +694,7 @@
                     <button id="day-view-add-event-btn" class="btn btn-secondary btn-sm">+ Event</button>
                     <button id="add-lesson-day-view-btn" class="btn btn-sm btn-success">+ Lesson</button>
                     <button id="copy-day-btn" class="btn btn-sm btn-secondary" title="Copy all lessons from this day to another day" onclick="openCopyDayPicker()">📋 Copy Day</button>
+                    <button id="shift-lessons-btn" class="btn btn-sm btn-secondary" title="Push lessons later (snow day) or pull them earlier" onclick="openShiftModal()">⏩ Shift</button>
                 </div>
                 <!-- Copy Day picker -->
                 <div id="copy-day-picker" class="copy-lesson-picker hidden" style="justify-content:center;padding:8px 12px;background:var(--surface-secondary,rgba(255,255,255,0.04));border-bottom:1px solid var(--border-color,rgba(255,255,255,0.08));">
@@ -1338,7 +1340,7 @@
                 <span class="nav-label">Staff</span>
                 <span id="principal-badge" class="unread-badge hidden">0</span>
             </button>
-            <span class="nav-version">v6.5.0</span>
+            <span class="nav-version">v6.6.0</span>
         </nav>
 
 
@@ -1416,6 +1418,10 @@
                         <input type="number" id="lesson-duration" value="45" min="5" max="180">
                     </div>
                 </div>
+                <label class="lesson-lock-row" for="lesson-locked">
+                    <input type="checkbox" id="lesson-locked">
+                    <span>📌 Keep on this date when lessons are shifted (field trips, assessments, events)</span>
+                </label>
                 
                 <!-- Recurring Lesson Section (only for new lessons) -->
                 <div id="recurring-section" class="recurring-section">
@@ -1553,6 +1559,7 @@
                 <div class="modal-actions">
                     <button type="button" id="share-lesson-btn" class="btn btn-icon hidden" title="Share Lesson">📤</button>
                     <button type="button" id="print-lesson-btn" class="btn btn-icon hidden" title="Print Lesson">🖨️</button>
+                    <button type="button" id="link-lesson-btn" class="btn btn-icon hidden" title="Get a read-only link to this lesson" onclick="createShareLink('lesson')">🔗</button>
                     <button type="button" id="copy-lesson-btn" class="btn btn-icon hidden" title="Copy lesson to another date" onclick="openCopyLessonPicker()">📋</button>
                     <button type="button" class="btn btn-secondary modal-cancel">Cancel</button>
                     <button type="button" id="delete-lesson-btn" class="btn btn-danger hidden">Delete</button>
@@ -2311,6 +2318,64 @@
     </div>
 
     <!-- Keyboard Shortcuts Modal -->
+    <!-- Share links (v6.6.0) -->
+    <div id="share-modal" class="modal hidden">
+        <div class="modal-content modal-medium">
+            <div class="modal-header">
+                <h2>🔗 Share link</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <p class="shift-intro">Anyone with this link can view a read-only copy, with no account needed. It shows the plans as they are right now and stops working after 30 days or when you turn it off. Student information is never included.</p>
+            <div class="share-link-row">
+                <input type="text" id="share-link-url" class="form-control" readonly aria-label="Share link">
+                <button type="button" class="btn btn-primary" onclick="copyShareLink()">Copy</button>
+            </div>
+            <div class="ai-history-head" style="margin-top:16px;">Your active links</div>
+            <div id="share-links-list" class="ai-history"></div>
+        </div>
+    </div>
+
+    <!-- Shift lessons (v6.6.0) -->
+    <div id="shift-modal" class="modal hidden">
+        <div class="modal-content modal-medium">
+            <div class="modal-header">
+                <h2>⏩ Shift lessons</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <p class="shift-intro">Move lessons along each class's own meeting days. Holidays, breaks and 📌 locked lessons are skipped. You can undo with Ctrl+Z.</p>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="shift-from">Starting from</label>
+                    <input type="date" id="shift-from" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label for="shift-class">Classes</label>
+                    <select id="shift-class" class="form-control"></select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="shift-direction">Direction</label>
+                    <select id="shift-direction" class="form-control">
+                        <option value="1">Push later (snow day, lost day)</option>
+                        <option value="-1">Pull earlier (extra day)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="shift-count">By how many class days</label>
+                    <select id="shift-count" class="form-control">
+                        <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+                    </select>
+                </div>
+            </div>
+            <div id="shift-preview" class="shift-preview" aria-live="polite"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary modal-cancel">Cancel</button>
+                <button type="button" id="shift-apply-btn" class="btn btn-primary" onclick="applyLessonShift()">Shift lessons</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Principal feedback inbox (v6.4.0) -->
     <div id="feedback-modal" class="modal hidden">
         <div class="modal-content modal-medium">

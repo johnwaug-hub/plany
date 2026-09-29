@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Shared lesson plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --ink:#1b2130; --ink2:#4a5368; --line:#dde1ea; --bg:#f5f6fa; --card:#fff; --accent:#c2185b; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 Inter, system-ui, -apple-system, "Segoe UI", sans-serif; padding: 24px 16px 48px; }
+  main { max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+  header h1 { font-size: 26px; margin: 0 0 4px; line-height: 1.2; }
+  header p { margin: 0; color: var(--ink2); }
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
+  .toolbar button { font: inherit; font-weight: 600; min-height: 44px; padding: 8px 16px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); cursor: pointer; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+  .day h2 { font-size: 17px; margin: 0 0 8px; }
+  .off { color: var(--ink2); font-style: italic; }
+  .cls { border-top: 1px solid var(--line); padding: 10px 0 4px; }
+  .cls:first-of-type { border-top: none; }
+  .cls-name { font-weight: 700; }
+  .label { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink2); margin-top: 10px; }
+  .field { white-space: pre-wrap; }
+  .muted { color: var(--ink2); }
+  .foot { font-size: 12px; color: var(--ink2); text-align: center; }
+  .state { text-align: center; padding: 40px 16px; }
+  @media print {
+    body { background: #fff; padding: 0; }
+    .toolbar, .foot, .sub { display: none; }
+    .card { border: none; padding: 0 0 12px; break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<main id="app"><div class="card state">Loading…</div></main>
+<script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore-compat.js"></script>
+<script>
+// Plany share links (v6.6.0) -- a read-only snapshot anyone with the link can
+// open, no account needed. The snapshot was frozen when the link was made.
+(function () {
+  firebase.initializeApp({
+    apiKey: "AIzaSyBV6H2WbqG5sOA6jL_qiS8cKx5_GHNrqcw",
+    authDomain: "plany-waugs.firebaseapp.com",
+    projectId: "plany-waugs",
+    appId: "1:197671183385:web:c3260c32ac53cfa8adb688"
+  });
+  const app = document.getElementById('app');
+  const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const field = (label, v) => v && String(v).trim() ? `<div class="label">${esc(label)}</div><div class="field">${esc(v)}</div>` : '';
+  const token = (location.pathname.split('/s/')[1] || '').split(/[/?#]/)[0];
+  const fail = (msg) => { app.innerHTML = `<div class="card state"><h1>Link not available</h1><p class="muted">${esc(msg)}</p></div>`; };
+  if (!token) return fail('This link is incomplete.');
+
+  firebase.firestore().collection('publicShares').doc(token).get().then(doc => {
+    if (!doc.exists) return fail('This link was removed or never existed.');
+    const d = doc.data();
+    const s = d.snapshot || {};
+    document.title = d.title || 'Shared lesson plan';
+    let body = '';
+    if (d.kind === 'lesson') {
+      const L = s.lesson || {};
+      body = `<section class="card">
+        <div class="muted">${esc([L.className, L.dateLabel].filter(Boolean).join(' · '))}</div>
+        ${field('Learning target', L.learningTarget)}${field('Success criteria', L.successCriteria)}
+        ${field('Standards', L.standards)}${field('Lesson flow', L.flow)}${field('Materials', L.materials)}
+        ${field('Activities & notes', L.activities)}
+      </section>`;
+    } else {
+      body = (s.days || []).map(day => `<section class="card day">
+        <h2>${esc(day.label)}</h2>
+        ${day.off ? `<div class="off">No school${day.offReason ? ' — ' + esc(day.offReason) : ''}</div>` : ''}
+        ${(day.events || []).length && !day.off ? `<div class="muted">📌 ${day.events.map(esc).join(' · ')}</div>` : ''}
+        ${(day.classes || []).map(c => `<div class="cls">
+            <div class="cls-name">${esc(c.name)}${c.time ? ' <span class="muted">' + esc(c.time) + '</span>' : ''}</div>
+            ${c.title ? `<div>${esc(c.title)}</div>` : '<div class="muted">No lesson planned</div>'}
+            ${field('Learning target', c.learningTarget)}${field('Materials', c.materials)}
+          </div>`).join('')}
+      </section>`).join('');
+    }
+    const expires = d.expiresAt && d.expiresAt.toDate ? d.expiresAt.toDate().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+    app.innerHTML = `<header><h1>${esc(d.title || 'Lesson plan')}</h1>
+        <p class="sub">${esc(d.subtitle || '')}</p></header>
+      <div class="toolbar"><button type="button" onclick="window.print()">🖨️ Print</button></div>
+      ${body}
+      <p class="foot">Read-only copy shared from Plany${expires ? ' · link works until ' + esc(expires) : ''}.</p>`;
+  }).catch(() => fail('This link has expired or was turned off by the teacher.'));
+})();
+</script>
+</body>
+</html>

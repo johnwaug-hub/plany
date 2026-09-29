@@ -9644,3 +9644,33 @@ a:focus-visible,
 }
 .plany-dialog-actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
 .plany-dialog-actions .btn { min-height: 44px; }
+
+
+/* v6.6.0 -- shift lessons + lock to date */
+.lesson-lock-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    margin: 4px 0 12px;
+    font-size: 14px;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+.lesson-lock-row input { width: 20px; height: 20px; flex-shrink: 0; }
+.shift-intro { font-size: 14px; color: var(--text-secondary); margin: 0 0 12px; line-height: 1.5; }
+.shift-preview {
+    white-space: pre-wrap;
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 10px 12px;
+    margin: 4px 0 8px;
+    border-radius: var(--radius-sm, 10px);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-primary);
+    min-height: 44px;
+}
+
+/* v6.6.0 -- share links */
+.share-link-row { display: flex; gap: 8px; }
+.share-link-row input { flex: 1; min-width: 0; font-family: ui-monospace, Consolas, monospace; font-size: 13px; }

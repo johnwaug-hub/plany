@@ -2,6 +2,24 @@
 
 A modern lesson planning app for teachers with an 80's inspired design.
 
+## What's New in v6.6.0 - Shift Lessons, Share Links 🔗⏩
+
+- **⏩ Shift lessons** (Day view → ⏩ Shift). Push lessons later after a snow day or lost day, or pull them
+  earlier, by 1–5 class days, for one class or all of them. Lessons move along each class's own meeting days
+  (schedule, every-other-week, sessions per day), skipping holidays and breaks; order and gaps are kept. A
+  preview says how many lessons move, and it refuses (instead of dropping lessons) if any would run past the
+  last day of school. **Ctrl+Z undoes it.**
+- **📌 Lock to date**: a checkbox in the lesson form keeps a lesson (field trip, assessment) on its date when
+  others shift around it.
+- **🔗 Share links** (Week view → 🔗 Share, or 🔗 in a saved lesson). Makes a read-only copy anyone can open at
+  `plany.work/s/…` with no account -- handy for a principal, co-teacher or sub. Links last 30 days, can be turned
+  off any time from the share window, and contain only lesson-plan fields (never students). The page prints
+  cleanly without Plany branding or your name.
+- **Android versions stay in sync:** `npm run cap:version` (and `npm run cap:sync`) copy the release version
+  into the Android build (`versionName` 6.6.0, `versionCode` 60600) -- it had been stuck at 5.11.9 / 1.
+- Tests: 12 (added shift-planning cases).
+- **Deploy:** rules and hosting changed -- `npm run deploy`.
+
 ## What's New in v6.5.0 - Audit Clean-Up 🧹
 
 The rest of the v6.0.1 audit's code items.

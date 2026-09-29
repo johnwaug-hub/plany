@@ -1,4 +1,4 @@
-// PLANY - Main Application v6.5.0
+// PLANY - Main Application v6.6.0
 // ==================================================
 
 // Service Worker Update Handler - ensures fresh content
@@ -3990,6 +3990,8 @@ function openLessonModal(lesson = null, dateStr = null) {
             : '';
         elements.lessonId.value = lesson.id;
         elements.lessonDate.value = lesson.date;
+        const lockEl = document.getElementById('lesson-locked');
+        if (lockEl) lockEl.checked = lesson.lockedDate === true;
         elements.lessonTitle.value = lesson.title;
         elements.lessonClass.value = lesson.classId || '';
         // Restore slot index (default 0 for legacy lessons)
@@ -4019,6 +4021,7 @@ function openLessonModal(lesson = null, dateStr = null) {
         currentLessonAttachments = lesson.attachments || [];
         elements.deleteLessonBtn.classList.remove('hidden');
         if (shareBtn) shareBtn.classList.remove('hidden');
+        document.getElementById('link-lesson-btn')?.classList.remove('hidden');
         const _cpBtn = document.getElementById('copy-lesson-btn'); if (_cpBtn) _cpBtn.classList.remove('hidden');
         
         // Hide recurring section for existing lessons
@@ -4045,6 +4048,7 @@ function openLessonModal(lesson = null, dateStr = null) {
         elements.lessonDate.value = dateStr || formatDate(new Date());
         elements.deleteLessonBtn.classList.add('hidden');
         if (shareBtn) shareBtn.classList.add('hidden');
+        document.getElementById('link-lesson-btn')?.classList.add('hidden');
         const _cpBtnNew = document.getElementById('copy-lesson-btn'); if (_cpBtnNew) _cpBtnNew.classList.add('hidden');
         
         // Show recurring section for new lessons
@@ -4224,6 +4228,7 @@ elements.lessonForm.addEventListener('submit', async (e) => {
         materials: elements.lessonMaterials.value.trim(),
         activities: elements.lessonActivities.value.trim(),
         attachments: attachmentsToSave,
+        lockedDate: document.getElementById('lesson-locked')?.checked === true,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
     
@@ -20116,6 +20121,280 @@ async function savePrincipalComment() {
 }
 
 // ── Teacher: view principal comments on their lessons ─────────────────
+
+// ── Share links (v6.6.0) ───────────────────────────────────────────────
+// A frozen, read-only snapshot in publicShares/{random token}, opened at
+// plany.work/s/{token} (public/share.html) with no account. Only lesson-plan
+// fields go in -- never students, notes about students or sub-plan details.
+function randomShareToken() {
+    const a = new Uint8Array(22);   // 22 chars; the rule requires 20+
+    crypto.getRandomValues(a);
+    return Array.from(a, b => 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 56]).join('');
+}
+
+function buildLessonShare() {
+    const id = document.getElementById('lesson-id')?.value;
+    const L = lessons.find(l => l.id === id);
+    if (!L) return null;
+    const cls = classes.find(c => c.id === L.classId);
+    return {
+        kind: 'lesson',
+        title: L.title || 'Lesson plan',
+        snapshot: { lesson: {
+            className: cls?.name || '', dateLabel: formatDisplayDate(new Date(L.date + 'T00:00:00')),
+            learningTarget: L.learningTarget || '', successCriteria: L.successCriteria || '',
+            standards: L.standards || L.objectives || '', flow: L.flow || '',
+            materials: L.materials || '', activities: L.activities || ''
+        } }
+    };
+}
+
+function buildWeekShare() {
+    const DOW = ['sun','mon','tue','wed','thu','fri','sat'];
+    const offsets = settings.hideWeekends === true ? [0, 1, 2, 3, 4] : [-1, 0, 1, 2, 3, 4, 5];
+    const days = offsets.map(o => {
+        const d = addDays(currentWeekStart, o);
+        const ds = formatDate(d);
+        const dow = DOW[d.getDay()];
+        const dayEvents = events.filter(e => e.startDate && ds >= e.startDate && ds <= (e.endDate || e.startDate));
+        const off = isOffDay(ds);
+        const dayLessons = lessons.filter(l => l.date === ds);
+        const slots = off ? [] : getSortedClassSlots(classes.filter(c => c.schedule && c.schedule[dow] && isClassActiveOnDate(c, ds)), dow);
+        return {
+            label: d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }),
+            off,
+            offReason: off ? (dayEvents.find(isNoSchoolEvent)?.title || '') : '',
+            events: dayEvents.filter(e => !isNoSchoolEvent(e)).map(e => e.title),
+            classes: slots.map(({ cls, slotIndex, slot, slotCount }) => {
+                const l = findLessonForSlot(dayLessons, cls.id, slotIndex);
+                return {
+                    name: cls.name + (slotCount > 1 ? ` (session ${slotIndex + 1})` : ''),
+                    time: slot?.start ? `${slot.start}${slot.end ? '–' + slot.end : ''}` : '',
+                    title: l?.title || '', learningTarget: l?.learningTarget || '', materials: l?.materials || ''
+                };
+            })
+        };
+    }).filter(day => !(day.classes.length === 0 && !day.off && day.events.length === 0 && /^(Sat|Sun)/.test(day.label)));
+    const label = document.getElementById('current-week')?.textContent || formatDate(currentWeekStart);
+    return { kind: 'week', title: `Week of ${label}`, snapshot: { days } };
+}
+
+async function createShareLink(kind) {
+    if (!currentUser) return;
+    const base = kind === 'lesson' ? buildLessonShare() : buildWeekShare();
+    if (!base) { showToast('Save the lesson first, then share it.'); return; }
+    const token = randomShareToken();
+    const expires = new Date(); expires.setDate(expires.getDate() + 30);
+    showLoading();
+    try {
+        await db.collection('publicShares').doc(token).set({
+            ...base,
+            ownerUid: currentUser.uid,
+            subtitle: (userProfile && userProfile.username) || currentUser.displayName || '',
+            revoked: false,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            expiresAt: firebase.firestore.Timestamp.fromDate(expires)
+        });
+        const url = `https://plany.work/s/${token}`;
+        const input = document.getElementById('share-link-url');
+        if (input) input.value = url;
+        document.getElementById('share-modal')?.classList.remove('hidden');
+        refreshShareLinks();
+        try { await navigator.clipboard.writeText(url); showToast('🔗 Link copied'); } catch (_) {}
+    } catch (e) {
+        console.error('createShareLink:', e);
+        showToast('Could not create the link: ' + e.message);
+    } finally { hideLoading(); }
+}
+
+function copyShareLink() {
+    const input = document.getElementById('share-link-url');
+    if (!input?.value) return;
+    navigator.clipboard.writeText(input.value).then(() => showToast('🔗 Link copied'))
+        .catch(() => { input.select(); showToast('Press Ctrl+C to copy'); });
+}
+
+async function refreshShareLinks() {
+    const box = document.getElementById('share-links-list');
+    if (!box || !currentUser) return;
+    try {
+        const snap = await db.collection('publicShares').where('ownerUid', '==', currentUser.uid).get();
+        const now = Date.now();
+        const items = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+            .filter(x => !x.revoked && x.expiresAt?.toMillis?.() > now)
+            .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+        box.innerHTML = items.length ? items.map(x => `<div class="ai-history-row">
+                <button type="button" class="ai-history-open" data-url="https://plany.work/s/${escHtml(x.id)}">
+                    <span>${x.kind === 'lesson' ? '📄' : '🗓️'} ${escHtml(x.title || 'Shared plan')}</span>
+                    <span class="ai-history-date">until ${escHtml(x.expiresAt.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))}</span>
+                </button>
+                <button type="button" class="btn btn-sm btn-ghost share-revoke" data-id="${escHtml(x.id)}">Turn off</button>
+            </div>`).join('') : '<p class="muted" style="font-size:14px;">No active links.</p>';
+        box.querySelectorAll('.ai-history-open').forEach(b => b.addEventListener('click', () => {
+            const input = document.getElementById('share-link-url'); if (input) input.value = b.dataset.url;
+        }));
+        box.querySelectorAll('.share-revoke').forEach(b => b.addEventListener('click', async () => {
+            if (!await planyConfirm('Turn off this link? Anyone who has it will no longer be able to open it.', { okText: 'Turn off', danger: true })) return;
+            try { await db.collection('publicShares').doc(b.dataset.id).update({ revoked: true }); showToast('Link turned off'); refreshShareLinks(); }
+            catch (e) { showToast('Could not turn it off: ' + e.message); }
+        }));
+    } catch (e) { console.warn('refreshShareLinks:', e.message); }
+}
+
+// ── Shift lessons: push later / pull earlier (v6.6.0) ─────────────────
+// Lessons move along a class's own meeting slots (its schedule, every-other-
+// week rule, sessions per day), skipping no-school days and any lesson that's
+// 📌 locked to its date. Order and gaps are kept.
+//
+// planClassShift() is pure (no Firestore, no DOM) so tests can run it.
+// Returns { moves:[{id, from, fromSlot, to, toSlot}], overflow, blocked }.
+function planClassShift({ cls, classLessons, fromDate, count, endDate, isOff, slotsFor, isActive }) {
+    const DOW = ['sun','mon','tue','wed','thu','fri','sat'];
+    // 1. every meeting slot from fromDate to endDate
+    const slots = [];
+    const d = new Date(fromDate + 'T00:00:00');
+    const end = new Date(endDate + 'T00:00:00');
+    for (let guard = 0; d <= end && guard < 800; guard++, d.setDate(d.getDate() + 1)) {
+        const ds = formatDate(d);
+        const dow = DOW[d.getDay()];
+        if (!cls.schedule || !cls.schedule[dow] || isOff(ds) || !isActive(cls, ds)) continue;
+        const n = Math.max(slotsFor(cls, dow).length, 1);
+        for (let si = 0; si < n; si++) slots.push({ date: ds, si });
+    }
+    const slotKey = (date, si) => date + '#' + si;
+    const lessonSi = l => (l.slotIndex > 0 ? l.slotIndex : 0);
+    // 2. slots held by locked lessons are off limits
+    const lockedKeys = new Set(classLessons.filter(l => l.lockedDate === true && l.date >= fromDate)
+        .map(l => slotKey(l.date, lessonSi(l))));
+    const free = slots.filter(s => !lockedKeys.has(slotKey(s.date, s.si)));
+    const freeIndex = new Map(free.map((s, i) => [slotKey(s.date, s.si), i]));
+    // 3. rank each movable lesson in the free-slot list (in order, no ties)
+    const movable = classLessons.filter(l => l.date >= fromDate && l.lockedDate !== true)
+        .sort((a, b) => a.date.localeCompare(b.date) || lessonSi(a) - lessonSi(b));
+    let prev = -1;
+    const ranked = movable.map(l => {
+        let r = freeIndex.get(slotKey(l.date, lessonSi(l)));
+        if (r === undefined) {                           // lesson sits on a non-meeting day
+            r = free.findIndex(s => s.date >= l.date);
+            if (r < 0) r = free.length;
+        }
+        r = Math.max(r, prev + 1);
+        prev = r;
+        return { l, r };
+    });
+    // 4. move by count
+    const moves = [];
+    let overflow = 0, blocked = 0;
+    for (const { l, r } of ranked) {
+        const nr = r + count;
+        if (nr < 0) { blocked++; continue; }
+        if (nr >= free.length) { overflow++; continue; }
+        const t = free[nr];
+        const toSlot = l.slotIndex === -1 ? -1 : t.si;
+        if (t.date !== l.date || toSlot !== (l.slotIndex ?? 0)) {
+            moves.push({ id: l.id, from: l.date, fromSlot: l.slotIndex ?? 0, to: t.date, toSlot });
+        }
+    }
+    return { moves, overflow, blocked };
+}
+
+function shiftYearEnd() {
+    const last = events.find(e => e.type === 'last-day');
+    return last?.startDate || settings.yearEnd || formatDate(addDays(new Date(), 180));
+}
+
+function buildShiftPlan() {
+    const fromDate = document.getElementById('shift-from')?.value;
+    const classSel = document.getElementById('shift-class')?.value || 'all';
+    const dir = parseInt(document.getElementById('shift-direction')?.value || '1');
+    const n = parseInt(document.getElementById('shift-count')?.value || '1');
+    if (!fromDate) return null;
+    const targets = classSel === 'all' ? classes : classes.filter(c => c.id === classSel);
+    const endDate = shiftYearEnd();
+    const plan = { moves: [], overflow: 0, blocked: 0, classesTouched: 0 };
+    targets.forEach(cls => {
+        const r = planClassShift({
+            cls, classLessons: lessons.filter(l => l.classId === cls.id), fromDate, count: dir * n,
+            endDate, isOff: isOffDay, slotsFor: getTimeSlotsForDay, isActive: isClassActiveOnDate
+        });
+        if (r.moves.length) plan.classesTouched++;
+        plan.moves.push(...r.moves);
+        plan.overflow += r.overflow;
+        plan.blocked += r.blocked;
+    });
+    return plan;
+}
+
+function renderShiftPreview() {
+    const el = document.getElementById('shift-preview');
+    const btn = document.getElementById('shift-apply-btn');
+    const plan = buildShiftPlan();
+    if (!el) return;
+    if (!plan) { el.textContent = 'Pick a starting date.'; if (btn) btn.disabled = true; return; }
+    const parts = [];
+    parts.push(plan.moves.length
+        ? `${plan.moves.length} lesson${plan.moves.length !== 1 ? 's' : ''} in ${plan.classesTouched} class${plan.classesTouched !== 1 ? 'es' : ''} will move.`
+        : 'No lessons to move from that date.');
+    if (plan.overflow) parts.push(`⚠️ ${plan.overflow} lesson${plan.overflow !== 1 ? 's' : ''} would run past the last day of school, so nothing will be shifted. Lock or delete lessons near the end of the year, or shift by fewer days.`);
+    if (plan.blocked) parts.push(`⚠️ ${plan.blocked} lesson${plan.blocked !== 1 ? 's' : ''} can't move that much earlier, so nothing will be shifted. Try fewer days or a later starting date.`);
+    el.textContent = parts.join('\n');
+    if (btn) btn.disabled = !plan.moves.length || plan.overflow > 0 || plan.blocked > 0;
+}
+
+function openShiftModal() {
+    const sel = document.getElementById('shift-class');
+    if (sel) {
+        sel.innerHTML = '<option value="all">All classes</option>' +
+            classes.map(c => `<option value="${escHtml(c.id)}">${escHtml(c.name)}</option>`).join('');
+    }
+    const from = document.getElementById('shift-from');
+    if (from) from.value = formatDate(currentDayDate || new Date());
+    ['shift-from', 'shift-class', 'shift-direction', 'shift-count'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el && !el._shiftBound) { el.addEventListener('change', renderShiftPreview); el._shiftBound = true; }
+    });
+    document.getElementById('shift-modal')?.classList.remove('hidden');
+    renderShiftPreview();
+}
+
+async function writeLessonMoves(moves, forward) {
+    const yearPath = getYearPath();
+    for (let i = 0; i < moves.length; i += 400) {
+        const batch = db.batch();
+        moves.slice(i, i + 400).forEach(m => batch.update(yearPath.collection('lessons').doc(m.id),
+            forward ? { date: m.to, slotIndex: m.toSlot } : { date: m.from, slotIndex: m.fromSlot }));
+        await batch.commit();
+    }
+    moves.forEach(m => {
+        const l = lessons.find(x => x.id === m.id);
+        if (l) { l.date = forward ? m.to : m.from; l.slotIndex = forward ? m.toSlot : m.fromSlot; }
+    });
+    renderCalendar(); renderWeek();
+    if (typeof renderDayView === 'function') renderDayView();
+    updateStats();
+}
+
+async function applyLessonShift() {
+    const plan = buildShiftPlan();
+    if (!plan || !plan.moves.length || plan.overflow || plan.blocked) { renderShiftPreview(); return; }
+    showLoading();
+    try {
+        await writeLessonMoves(plan.moves, true);
+        const moves = plan.moves;
+        recordAction({
+            type: 'shift_lessons',
+            restore: () => writeLessonMoves(moves, false),
+            redo: () => writeLessonMoves(moves, true)
+        });
+        document.getElementById('shift-modal')?.classList.add('hidden');
+        showToast(`⏩ Shifted ${moves.length} lesson${moves.length !== 1 ? 's' : ''}. Press Ctrl+Z to undo.`);
+    } catch (e) {
+        console.error('applyLessonShift:', e);
+        showToast('Could not shift lessons: ' + e.message);
+    } finally {
+        hideLoading();
+    }
+}
 
 // ── Principal feedback inbox (v6.4.0) ──────────────────────────────────
 // Principals could leave comments on a teacher's lessons, but nothing ever
