@@ -2,6 +2,17 @@
 
 A modern lesson planning app for teachers with an 80's inspired design.
 
+## What's New in v6.3.2 - One AI Key Everywhere 🔑
+
+- **Fixed: "API key is invalid" on the classroom board.** A device holding an old key kept using it, and on
+  sign-in it even copied that old key over your account backup, so the backup flipped between old and new
+  keys depending on which device signed in last. Now the account backup is the source of truth: it only changes
+  when you click **Save Key**, and every device switches to it when you sign in.
+- If the AI provider still rejects a device's key, Plany checks your account backup, switches to the saved key
+  and retries automatically.
+- A rejected key now says so plainly and tells you where to paste a new one.
+- Hosting only: `npm run deploy:hosting`.
+
 ## What's New in v6.3.1 - AI Works From www.plany.work 🔧
 
 - **Fixed: "Anthropic Claude API error 403" on other devices.** Plany also answers at `www.plany.work`, but the

@@ -1,4 +1,4 @@
-// PLANY - Main Application v6.3.1
+// PLANY - Main Application v6.3.2
 // ==================================================
 
 // Service Worker Update Handler - ensures fresh content
@@ -375,19 +375,23 @@ async function readMyAiKeyBackup() {
 // we can use that same doc to silently restore a key on any device that
 // has none saved yet, right after login -- without ever overwriting a key
 // that's already present locally.
+// v6.3.2: the account backup is the source of truth. It changes only when you
+// click Save Key somewhere, so it always holds your most recently saved key.
+// Before, a device with an OLD key kept it (it "looked real") and then pushed
+// it back into the backup on login, so the backup flipped between the old
+// and new key depending on which device signed in last -- "API key is
+// invalid" on the classroom board.
 async function restoreAiKeyFromCloud() {
     if (!currentUser) return;
-    // A local key that looks real wins; a missing or junk one (e.g. an
-    // autofilled login password) gets replaced by the account backup.
-    if (aiKeyLooksValid(aiSettings.provider, aiSettings.apiKey)) return;
     try {
         const data = await readMyAiKeyBackup();
         if (!data || !data.apiKey || !data.provider) return;
         if (!aiKeyLooksValid(data.provider, data.apiKey)) return;
-        if (aiKeyLooksValid(data.provider, localStorage.getItem(`ai_key_${data.provider}`) || '')) return; // don't clobber a real key
+        const localKey = localStorage.getItem(`ai_key_${data.provider}`) || '';
+        if (localKey === data.apiKey && aiSettings.provider === data.provider) return;   // already in step
         localStorage.setItem('ai_provider', data.provider);
         localStorage.setItem(`ai_key_${data.provider}`, data.apiKey);
-        console.log('Restored AI key from account backup (this device had none saved).');
+        console.log('AI key updated from account backup.');
         applyAiFeatureGating();
         const providerEl = document.getElementById('ai-provider-select');
         const keyEl = document.getElementById('ai-api-key');
@@ -408,7 +412,10 @@ async function ensureAiKeyCloudBackup() {
     if (!currentUser || !aiKeyLooksValid(aiSettings.provider, aiSettings.apiKey)) return;
     try {
         const d = await readMyAiKeyBackup();
-        if (d && d.apiKey === aiSettings.apiKey && d.provider === aiSettings.provider) return;
+        // Only create a backup that doesn't exist yet. Replacing an existing
+        // one is Save Key's job -- a device must never overwrite the backup
+        // with whatever (possibly old) key it happens to hold.
+        if (d && d.apiKey && aiKeyLooksValid(d.provider, d.apiKey)) return;
         await syncMySharedKeyDoc();
         console.log('AI key cloud backup written for this account.');
     } catch (e) { console.warn('ensureAiKeyCloudBackup:', e.message); }
@@ -551,7 +558,31 @@ function _aiDirectRequest(providerId, apiKey, payload) {
     return fetch(url, { method: 'POST', headers, body: JSON.stringify(payload) });
 }
 
+// v6.3.2: if the provider rejects this device's own key, check the account
+// backup; when it holds a different key, switch to it and retry once.
 async function aiRequest(providerId, apiKey, payload, shareFromUid = null) {
+    const resp = await _aiRequestOnce(providerId, apiKey, payload, shareFromUid);
+    if (!apiKey || resp.status !== 401 || !currentUser) return resp;
+    const body = await resp.clone().json().catch(() => null);
+    const msg = (body && body.error && body.error.message) || '';
+    if (/sign in to Plany/i.test(msg)) return resp;          // our proxy's own sign-in check, not the key
+    try {
+        const backup = await readMyAiKeyBackup();
+        if (backup && backup.apiKey && backup.apiKey !== apiKey && backup.provider === providerId &&
+            aiKeyLooksValid(backup.provider, backup.apiKey)) {
+            localStorage.setItem(`ai_key_${providerId}`, backup.apiKey);
+            const keyEl = document.getElementById('ai-api-key');
+            if (keyEl && aiSettings.provider === providerId) keyEl.value = backup.apiKey;
+            if (typeof window._refreshAiKeyStatus === 'function') window._refreshAiKeyStatus();
+            showToast('🔑 This device had an old AI key. Switched to the key saved in your account.');
+            return _aiRequestOnce(providerId, backup.apiKey, payload, null);
+        }
+    } catch (e) { console.warn('AI key recovery:', e.message); }
+    resp._planyKeyRejected = true;
+    return resp;
+}
+
+async function _aiRequestOnce(providerId, apiKey, payload, shareFromUid = null) {
     // A shared key only exists server-side, so it can only go via the proxy.
     const canGoDirect = !!apiKey;
     if (_aiProxyAvailable === false && canGoDirect) return _aiDirectRequest(providerId, apiKey, payload);
@@ -597,6 +628,9 @@ async function aiRequest(providerId, apiKey, payload, shareFromUid = null) {
 // Before, anything without error.message showed as a bare "API error 403".
 function aiErrorMessage(body, status, label) {
     const e = body && body.error;
+    const keyRejected = status === 401 && e && typeof e === 'object' &&
+        (e.type === 'authentication_error' || e.code === 'invalid_api_key' || /api key/i.test(e.message || ''));
+    if (keyRejected) return `${label} says your API key isn't valid any more. Paste your current key from ${label === 'Anthropic Claude' ? 'console.anthropic.com' : 'your provider'} in Settings → AI and click Save Key -- every device picks it up.`;
     if (e && typeof e === 'object' && e.message) return e.message;
     if (e === 'origin_not_allowed') return 'AI only works when Plany is opened at plany.work. Open https://plany.work and try again.';
     if (status === 401) return 'Please sign in to Plany again to use AI features.';
