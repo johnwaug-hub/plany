@@ -1,4 +1,6 @@
-// PLANY - Main Application v6.7.0
+// PLANY - Main Application v6.8.0
+// GENERATED FILE -- edit the feature files in src/app/ and run `npm run build`.
+// (public/js/app.js is those files joined in order; `npm test` fails if it is stale.)
 // ==================================================
 
 // Service Worker Update Handler - ensures fresh content

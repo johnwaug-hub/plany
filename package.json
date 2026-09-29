@@ -4,7 +4,7 @@
   "description": "Lesson Planning Made Simple for Teachers",
   "private": true,
   "scripts": {
-    "build": "echo 'No build step \u2014 static site'",
+    "build": "node scripts/build-app.js",
     "cap:add:android": "npx cap add android",
     "cap:add:ios": "npx cap add ios",
     "cap:sync": "node scripts/sync-android-version.js && npx cap sync",
@@ -15,11 +15,12 @@
     "cap:update": "npx cap update",
     "deploy:rules": "firebase deploy --only firestore:rules,storage --project plany-waugs",
     "deploy:functions": "cd functions && npm install && cd .. && firebase deploy --only functions --project plany-waugs --force",
-    "deploy:hosting": "npm test && firebase deploy --only hosting --project plany-waugs",
-    "deploy": "npm test && npm run deploy:rules && npm run deploy:functions && npm run deploy:hosting",
-    "test": "node --test tests/logic.test.js",
-    "deploy:preview": "npm test && firebase hosting:channel:deploy preview --expires 7d --project plany-waugs",
-    "cap:version": "node scripts/sync-android-version.js"
+    "deploy:hosting": "npm run build && npm test && firebase deploy --only hosting --project plany-waugs",
+    "deploy": "npm run build && npm test && npm run deploy:rules && npm run deploy:functions && npm run deploy:hosting",
+    "test": "node scripts/build-app.js --check && node --check public/js/app.js && node --test tests/logic.test.js",
+    "deploy:preview": "npm run build && npm test && firebase hosting:channel:deploy preview --expires 7d --project plany-waugs",
+    "cap:version": "node scripts/sync-android-version.js",
+    "version:set": "node scripts/set-version.js"
   },
   "dependencies": {
     "@capacitor/android": "^6.0.0",
