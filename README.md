@@ -4,7 +4,7 @@ A modern lesson planning app for teachers with an 80's inspired design.
 
 ## What's New in v6.7.0 - Standards for Every State 📚
 
-- **Standards library for all 50 states + DC, Common Core and NGSS, K–12** -- about 590,000 standards from the
+- **Standards library for all 50 states + DC, Common Core and NGSS, K–12** -- about 404,000 standards from the
   Common Standards Project (current, non-deprecated sets in ELA, math, science, social studies, computer
   science, arts, PE and health). Stored as one file per state in `public/standards/` (57 MB, 11.6 MB
   gzipped) and loaded only when you open a picker (Arizona is ~170 KB compressed).
