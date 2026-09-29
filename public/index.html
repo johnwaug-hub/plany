@@ -166,6 +166,9 @@
                 </div>
             </div>
             <div class="header-right">
+                <button id="feedback-btn" class="btn btn-icon feedback-btn hidden" title="Feedback from your principal" aria-label="Feedback from your principal">
+                    💬<span id="feedback-badge" class="feedback-badge hidden"></span>
+                </button>
                 <button id="help-btn" class="btn btn-icon help-btn-trigger" title="Help &amp; Guide">
                     <span class="help-btn-mark">?</span>
                 </button>
@@ -1335,7 +1338,7 @@
                 <span class="nav-label">Staff</span>
                 <span id="principal-badge" class="unread-badge hidden">0</span>
             </button>
-            <span class="nav-version">v6.3.2</span>
+            <span class="nav-version">v6.4.0</span>
         </nav>
 
 
@@ -2308,6 +2311,17 @@
     </div>
 
     <!-- Keyboard Shortcuts Modal -->
+    <!-- Principal feedback inbox (v6.4.0) -->
+    <div id="feedback-modal" class="modal hidden">
+        <div class="modal-content modal-medium">
+            <div class="modal-header">
+                <h2>💬 Feedback from your principal</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div id="feedback-list" class="feedback-list"></div>
+        </div>
+    </div>
+
     <div id="keyboard-modal" class="modal hidden">
         <div class="modal-content modal-medium">
             <div class="modal-header">

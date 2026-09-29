@@ -100,6 +100,10 @@ service cloud.firestore {
         get(/databases/$(database)/documents/principalLinks/$(request.auth.uid + '_' + request.resource.data.teacherUid)).data.status == 'accepted';
       allow update, delete: if request.auth != null &&
         resource.data.principalUid == request.auth.uid;
+      // v6.4.0: the teacher can mark a comment read -- and change nothing else.
+      allow update: if request.auth != null &&
+        resource.data.teacherUid == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'readAt']);
     }
 
     // Friend requests

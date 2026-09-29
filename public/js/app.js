@@ -1,4 +1,4 @@
-// PLANY - Main Application v6.3.2
+// PLANY - Main Application v6.4.0
 // ==================================================
 
 // Service Worker Update Handler - ensures fresh content
@@ -514,7 +514,7 @@ async function grantKeyAccess() {
 }
 
 async function revokeKeyGrant(grantId) {
-    if (!confirm('Revoke this person\'s access to your AI key?')) return;
+    if (!await planyConfirm('Revoke this person\'s access to your AI key?')) return;
     try {
         await db.collection('apiKeyGrants').doc(grantId).delete();
         showToast('Access revoked');
@@ -1674,6 +1674,8 @@ async function loadSchoolYearData(schoolYear) {
     updateYearChecklist();
     initPrincipalView();
     loadTeacherLinkRequests();
+    loadTeacherPrincipalComments();
+    startLiveListeners();
     await restoreAiKeyFromCloud();
     await ensureAiKeyCloudBackup();
     await checkIncomingKeyShare();
@@ -1692,6 +1694,57 @@ async function loadSchoolYearData(schoolYear) {
 }
 
 // ==================== NAVIGATION ====================
+
+// ── Phone bottom nav: Month · Week · Day · AI · More (v6.4.0) ───────────
+// Seven tabs didn't fit a 390px phone ("CLASSESSTUDENTS"). On phones, CSS
+// hides Year / Classes / Students and this "More" button lists them.
+// The button is created here (not in the markup) so it isn't one of the
+// view-switching .nav-item buttons wired up just below.
+(function initNavMore() {
+    const nav = document.querySelector('.bottom-nav');
+    if (!nav) return;
+    const MORE_VIEWS = ['year', 'classes', 'students'];
+    const more = document.createElement('button');
+    more.type = 'button';
+    more.className = 'nav-item nav-more';
+    more.setAttribute('aria-haspopup', 'menu');
+    more.setAttribute('aria-expanded', 'false');
+    more.innerHTML = '<span class="nav-icon" aria-hidden="true">☰</span><span class="nav-label">More</span>';
+    const menu = document.createElement('div');
+    menu.className = 'nav-more-menu hidden';
+    menu.setAttribute('role', 'menu');
+    const close = () => { menu.classList.add('hidden'); more.setAttribute('aria-expanded', 'false'); };
+    MORE_VIEWS.forEach(v => {
+        const src = nav.querySelector(`.nav-item[data-view="${v}"]`);
+        if (!src) return;
+        const icon = (src.querySelector('.nav-icon')?.childNodes[0]?.textContent || '').trim();
+        const label = src.querySelector('.nav-label')?.textContent || v;
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'nav-more-item';
+        b.setAttribute('role', 'menuitem');
+        b.innerHTML = `<span aria-hidden="true">${escHtml(icon)}</span><span>${escHtml(label)}</span>`;
+        b.addEventListener('click', () => { close(); src.click(); syncMore(); });
+        menu.appendChild(b);
+    });
+    function syncMore() {
+        const activeView = nav.querySelector('.nav-item.active[data-view]')?.dataset.view;
+        more.classList.toggle('active', MORE_VIEWS.includes(activeView));
+    }
+    more.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const open = menu.classList.contains('hidden');
+        menu.classList.toggle('hidden', !open);
+        more.setAttribute('aria-expanded', String(open));
+        if (open) menu.querySelector('button')?.focus();
+    });
+    document.addEventListener('click', (e) => { if (!menu.contains(e.target) && e.target !== more) close(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !menu.classList.contains('hidden')) { close(); more.focus(); } });
+    nav.addEventListener('click', () => setTimeout(syncMore, 0));
+    const version = nav.querySelector('.nav-version');
+    nav.insertBefore(more, version || null);
+    document.body.appendChild(menu);
+})();
 
 elements.navItems.forEach(item => {
     item.addEventListener('click', () => {
@@ -3354,6 +3407,58 @@ function closeModal(modal) {
     }
 }
 
+// ── Styled confirm / alert (v6.4.0) ────────────────────────────────────
+// Replaces the browser's confirm()/alert() boxes, which looked foreign,
+// blocked the page, and in the installed app could be suppressed entirely.
+// planyConfirm(message, { okText, cancelText, danger }) -> Promise<boolean>
+function _planyDialog({ message, okText = 'OK', cancelText = null, danger = false, title = '' }) {
+    return new Promise(resolve => {
+        const prevFocus = document.activeElement;
+        const wrap = document.createElement('div');
+        wrap.className = 'plany-dialog';
+        wrap.innerHTML = `<div class="plany-dialog-box" role="alertdialog" aria-modal="true" aria-labelledby="plany-dialog-msg">
+            ${title ? `<div class="plany-dialog-title">${escHtml(title)}</div>` : ''}
+            <div class="plany-dialog-msg" id="plany-dialog-msg"></div>
+            <div class="plany-dialog-actions">
+                ${cancelText ? `<button type="button" class="btn btn-secondary plany-dialog-cancel">${escHtml(cancelText)}</button>` : ''}
+                <button type="button" class="btn ${danger ? 'btn-danger' : 'btn-primary'} plany-dialog-ok">${escHtml(okText)}</button>
+            </div>
+        </div>`;
+        wrap.querySelector('.plany-dialog-msg').textContent = message;
+        document.body.appendChild(wrap);
+        const ok = wrap.querySelector('.plany-dialog-ok');
+        const cancel = wrap.querySelector('.plany-dialog-cancel');
+        const done = (val) => {
+            wrap.remove();
+            try { if (prevFocus && document.contains(prevFocus)) prevFocus.focus({ preventScroll: true }); } catch (_) {}
+            resolve(val);
+        };
+        ok.addEventListener('click', () => done(true));
+        cancel?.addEventListener('click', () => done(false));
+        wrap.addEventListener('click', (e) => { if (e.target === wrap) done(false); });
+        wrap.addEventListener('keydown', (e) => {
+            e.stopPropagation();   // don't let Esc/Tab reach the modal handlers underneath
+            if (e.key === 'Escape') { e.preventDefault(); done(false); }
+            else if (e.key === 'Tab') {
+                const btns = [cancel, ok].filter(Boolean);
+                const i = btns.indexOf(document.activeElement);
+                e.preventDefault();
+                btns[(i + (e.shiftKey ? btns.length - 1 : 1)) % btns.length].focus();
+            }
+        });
+        // Destructive questions focus Cancel, so a stray Enter doesn't delete
+        (danger && cancel ? cancel : ok).focus();
+    });
+}
+function planyConfirm(message, opts = {}) {
+    const danger = opts.danger ?? /\b(delete|remove|clear|revoke|cannot be undone|without saving)\b/i.test(message);
+    return _planyDialog({ message, okText: opts.okText || (danger ? 'Yes, continue' : 'OK'), cancelText: opts.cancelText || 'Cancel', danger, title: opts.title || '' });
+}
+function planyAlert(message, opts = {}) {
+    return _planyDialog({ message, okText: opts.okText || 'OK', title: opts.title || '' });
+}
+function planyDialogOpen() { return !!document.querySelector('.plany-dialog'); }
+
 // ── Unsaved-change guard (v6.2.0) ─────────────────────────────────────
 // Typing in a modal marks it "dirty". Esc, the backdrop and the × button
 // then ask before throwing the changes away. (Save buttons close modals
@@ -3427,7 +3532,7 @@ function topOpenModalOrNull() {
     return null;
 }
 document.addEventListener('keydown', (e) => {
-    if (e.key !== 'Tab') return;
+    if (e.key !== 'Tab' || planyDialogOpen()) return;
     const modal = topOpenModalOrNull();
     if (!modal) return;
     const f = visibleFocusables(modal);
@@ -3457,9 +3562,9 @@ function topOpenModal() {
 
 // Close a modal the user dismissed (Esc / backdrop / ×). Returns false if
 // they chose to keep editing.
-function dismissModal(modal) {
+async function dismissModal(modal) {
     if (!modal) return true;
-    if (modal.dataset.dirty === '1' && !confirm('You have unsaved changes. Close without saving?')) return false;
+    if (modal.dataset.dirty === '1' && !(await planyConfirm('You have unsaved changes. Close without saving?', { okText: 'Discard changes', cancelText: 'Keep editing', danger: true }))) return false;
     modal.dataset.dirty = '';
     closeModal(modal);
     return true;
@@ -3488,7 +3593,7 @@ document.querySelectorAll('.modal').forEach(modal => {
 
 // ESC key closes only the top-most modal
 document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
+    if (e.key === 'Escape' && !planyDialogOpen()) {
         const openModal = topOpenModal();
         if (openModal) {
             e._planyModalHandled = true;
@@ -4142,7 +4247,7 @@ elements.lessonForm.addEventListener('submit', async (e) => {
 });
 
 elements.deleteLessonBtn.addEventListener('click', async () => {
-    if (!confirm('Delete this lesson?')) return;
+    if (!await planyConfirm('Delete this lesson?')) return;
 
     const lessonId = elements.lessonId.value;
     const deletedLesson = lessons.find(l => l.id === lessonId);
@@ -4157,7 +4262,7 @@ elements.deleteLessonBtn.addEventListener('click', async () => {
             .filter(l => l.classId === deletedLesson.classId && l.id !== lessonId && l.date > deletedLesson.date)
             .sort((a, b) => a.date.localeCompare(b.date));
         if (laterLessons.length > 0) {
-            const doShift = confirm(`Also shift the ${laterLessons.length} later lesson(s) in this class back to fill the gap?`);
+            const doShift = await planyConfirm(`Also shift the ${laterLessons.length} later lesson(s) in this class back to fill the gap?`, { okText: 'Shift them back', cancelText: 'Leave them', danger: false });
             if (doShift) {
                 shiftLessons = laterLessons;
                 shiftOldDates = laterLessons.map(l => l.date);
@@ -4603,7 +4708,7 @@ elements.classForm.addEventListener('submit', async (e) => {
 });
 
 elements.deleteClassBtn.addEventListener('click', async () => {
-    if (!confirm('Delete this class?')) return;
+    if (!await planyConfirm('Delete this class?')) return;
     
     const classId = elements.classId.value;
     showLoading();
@@ -4719,7 +4824,7 @@ document.getElementById('event-form').addEventListener('submit', async (e) => {
 
 // Delete event
 document.getElementById('delete-event-btn').addEventListener('click', async () => {
-    if (!confirm('Delete this event?')) return;
+    if (!await planyConfirm('Delete this event?')) return;
     
     const eventId = document.getElementById('event-id').value;
     showLoading();
@@ -6373,7 +6478,7 @@ function previewCurriculumDoc(docId) {
     const doc = curriculumDocs.find(d => d.id === docId);
     if (!doc || !doc.content) return;
     const preview = doc.content.substring(0, 800);
-    alert(`📄 ${doc.name}\n\n${preview}${doc.content.length > 800 ? '\n\n[... content continues ...]' : ''}`);
+    planyAlert(`${preview}${doc.content.length > 800 ? '\n\n[... content continues ...]' : ''}`, { title: `📄 ${doc.name}` });
 }
 
 // Re-extract text from a PDF that was previously uploaded without text
@@ -6468,7 +6573,7 @@ async function updateCurriculumField(docId, field, value) {
 }
 
 async function deleteCurriculumDoc(docId) {
-    if (!confirm('Delete this resource?')) return;
+    if (!await planyConfirm('Delete this resource?')) return;
     try {
         await db.collection('users').doc(currentUser.uid)
             .collection('curriculum').doc(docId).delete();
@@ -6506,7 +6611,7 @@ function toggleSelectAllCurriculum(cb) {
 async function deleteCurriculumSelected() {
     const ids = Array.from(document.querySelectorAll('.curr-select:checked')).map(c => c.value);
     if (ids.length === 0) return;
-    if (!confirm(`Delete ${ids.length} selected resource${ids.length !== 1 ? 's' : ''}? This cannot be undone.`)) return;
+    if (!await planyConfirm(`Delete ${ids.length} selected resource${ids.length !== 1 ? 's' : ''}? This cannot be undone.`)) return;
 
     showLoading();
     const lt = document.querySelector('.loading-text');
@@ -6628,6 +6733,21 @@ function resetUserState() {
     sharedLessons = [];
     principalLinkedTeachers = [];
     teacherLinkRequests = [];
+    // v6.4.0: these also belonged to the previous account (a shared AI key,
+    // the curriculum library, inboxes and badges)
+    try {
+        stopLiveListeners();
+        incomingKeyShare = null;
+        myKeyGrants = [];
+        curriculumDocs = [];
+        pendingRequests = [];
+        unreadCount = 0;
+        sharedResourceInbox = [];
+        sharedResourceUnread = 0;
+        teacherFeedback = [];
+        seatingData = { rows: 5, cols: 6, seats: {} };
+        window._commsYear = null;
+    } catch (_) { /* declared later in the file; fine before first load */ }
 
     // Clear principal-preview scratch state
     _previewTeacher = null;
@@ -6824,8 +6944,9 @@ function initFriendsSystem() {
     // Load friends data
     loadFriendsData();
     
-    // Listen for real-time updates
-    listenForFriendUpdates();
+    // Real-time listeners start from startLiveListeners() once the account's
+    // data has loaded (v6.4.0)
+    startLiveListeners();
 }
 
 // Send friend request from the settings input
@@ -6976,21 +7097,43 @@ async function loadFriendsData() {
 }
 
 // Listen for real-time updates
+// ── Live listeners follow the signed-in account (v6.4.0) ───────────────
+// They used to start once, 1 s after page load -- before sign-in had
+// finished on a fresh login, so they never started -- and were never
+// stopped, so after switching accounts the old account's queries kept
+// running. Now they start after each account's data loads and stop on
+// sign-out / account switch.
+const _liveUnsubs = [];
+let _liveUid = null;
+function stopLiveListeners() {
+    while (_liveUnsubs.length) { try { _liveUnsubs.pop()(); } catch (_) {} }
+    _liveUid = null;
+}
+function startLiveListeners() {
+    if (!currentUser || _liveUid === currentUser.uid) return;
+    stopLiveListeners();
+    _liveUid = currentUser.uid;
+    listenForFriendUpdates();
+    listenForSharedResources();
+    loadFriendsData();
+}
+const _liveErr = (what) => (e) => console.warn(`live ${what} listener:`, e.message);
+
 function listenForFriendUpdates() {
     if (!currentUser) return;
     
     // Listen for new friend requests
-    db.collection('friendRequests')
+    _liveUnsubs.push(db.collection('friendRequests')
         .where('toUid', '==', currentUser.uid)
         .where('status', '==', 'pending')
         .onSnapshot(snapshot => {
             pendingRequests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             renderPendingRequests();
             updateUnreadBadge();
-        });
+        }, _liveErr('friend requests')));
     
     // Listen for new shared lessons
-    db.collection('sharedLessons')
+    _liveUnsubs.push(db.collection('sharedLessons')
         .where('toUid', '==', currentUser.uid)
         .orderBy('sharedAt', 'desc')
         .limit(20)
@@ -6998,7 +7141,7 @@ function listenForFriendUpdates() {
             sharedLessons = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             renderSharedLessons();
             updateUnreadBadge();
-        });
+        }, _liveErr('shared lessons')));
 }
 
 // Send friend request
@@ -7066,7 +7209,7 @@ async function declineFriendRequest(requestId) {
 
 // Remove friend
 async function removeFriend(friendUid) {
-    if (!confirm('Remove this friend?')) return;
+    if (!await planyConfirm('Remove this friend?')) return;
     
     try {
         // Remove from both lists
@@ -7708,7 +7851,7 @@ async function smartDeleteAllLessons() {
         return;
     }
     
-    if (!confirm(`Delete ALL ${classLessons.length} lessons from "${className}"?\n\nThis will delete every lesson for this class and cannot be undone.`)) {
+    if (!await planyConfirm(`Delete ALL ${classLessons.length} lessons from "${className}"?\n\nThis will delete every lesson for this class and cannot be undone.`)) {
         return;
     }
     
@@ -10400,6 +10543,9 @@ async function sendSharedResource() {
                     size:         doc.size,
                     content:      doc.content || '',
                     hasContent:   doc.hasContent || false,
+                    // v6.4.0: include the file's download link so a shared PDF
+                    // also works in the recipient's page picker
+                    storageUrl:   doc.storageUrl || null,
                 },
                 note,
                 read: false,
@@ -10418,7 +10564,7 @@ async function sendSharedResource() {
 // Listen for incoming shared resources in real-time
 function listenForSharedResources() {
     if (!currentUser) return;
-    db.collection('sharedCurriculum')
+    _liveUnsubs.push(db.collection('sharedCurriculum')
         .where('toUid', '==', currentUser.uid)
         .orderBy('sharedAt', 'desc')
         .limit(30)
@@ -10427,7 +10573,7 @@ function listenForSharedResources() {
             sharedResourceUnread = sharedResourceInbox.filter(r => !r.read).length;
             renderSharedResourceInbox();
             updateResourceInboxBadge();
-        });
+        }, _liveErr('shared resources')));
 }
 
 function updateResourceInboxBadge() {
@@ -10483,13 +10629,25 @@ async function importSharedResource(itemId) {
     // Check duplicate by name
     const exists = curriculumDocs.find(d => d.name === item.resource.name);
     if (exists) {
-        if (!confirm(`"${item.resource.name}" is already in your library. Add a copy anyway?`)) return;
+        if (!await planyConfirm(`"${item.resource.name}" is already in your library. Add a copy anyway?`)) return;
     }
 
     showLoading();
     try {
+        // v6.4.0: copy only known fields. Spreading the sender's object let
+        // them set anything (including a storagePath pointing at their files).
+        const r = item.resource || {};
+        const url = typeof r.storageUrl === 'string' && /^https:\/\/firebasestorage\.googleapis\.com\/v0\/b\/plany-waugs\.firebasestorage\.app\//.test(r.storageUrl) ? r.storageUrl : null;
         const docData = {
-            ...item.resource,
+            name:         String(r.name || 'Shared resource').slice(0, 200),
+            subject:      String(r.subject || 'other').slice(0, 40),
+            resourceType: String(r.resourceType || '').slice(0, 40),
+            description:  String(r.description || '').slice(0, 2000),
+            fileType:     String(r.fileType || '').slice(0, 100),
+            size:         Number(r.size) || 0,
+            content:      typeof r.content === 'string' ? r.content : '',
+            hasContent:   !!r.hasContent,
+            storageUrl:   url,
             sharedBy:   item.fromName,
             sharedFrom: item.fromEmail,
             uploadedAt: new Date().toISOString()
@@ -10526,8 +10684,8 @@ function initCurriculumSharing() {
         await sendSharedResource();
     });
 
-    // Start listening
-    listenForSharedResources();
+    // Live listener starts from startLiveListeners() (v6.4.0)
+    startLiveListeners();
 }
 
 // ── AI Settings (API key only — grade + teacher name live in user profile) ──
@@ -11458,7 +11616,7 @@ async function handleImportFile(e) {
             return;
         }
         
-        if (!confirm(`Import backup from ${data.exportDate?.split('T')[0] || 'unknown date'}?\n\nThis will add to your existing data.`)) {
+        if (!await planyConfirm(`Import backup from ${data.exportDate?.split('T')[0] || 'unknown date'}?\n\nThis will add to your existing data.`)) {
             return;
         }
         
@@ -15187,7 +15345,7 @@ async function clearSeat(key) {
 }
 
 async function clearAllSeats() {
-    if (!confirm('Clear all seat assignments?')) return;
+    if (!await planyConfirm('Clear all seat assignments?')) return;
     seatingData.seats = {};
     await saveSeatingChart();
     renderSeatingChart();
@@ -15384,7 +15542,7 @@ document.getElementById('comm-form')?.addEventListener('submit', async(e) => {
 
 async function deleteComm(id) {
     const cid = id || document.getElementById('comm-id').value;
-    if (!cid || !confirm('Delete this log entry?')) return;
+    if (!cid || !await planyConfirm('Delete this log entry?')) return;
     showLoading();
     try {
         await getYearPath().collection('communications').doc(cid).delete();
@@ -15541,7 +15699,7 @@ function renderAiHistory(box, items, heading, onOpen, onChanged) {
     }));
     box.querySelectorAll('.ai-history-del').forEach(b => b.addEventListener('click', async () => {
         const it = items.find(x => x.id === b.dataset.id);
-        if (!it || !confirm(`Delete "${it.label || 'this item'}"?`)) return;
+        if (!it || !await planyConfirm(`Delete "${it.label || 'this item'}"?`)) return;
         if (await deleteAiOutput(it.id)) { showToast('Deleted'); onChanged(); }
     }));
 }
@@ -15760,7 +15918,7 @@ document.getElementById('student-form')?.addEventListener('submit', async(e)=>{
 
 async function deleteStudent(){
     const sid = document.getElementById('student-id').value;
-    if(!sid||!confirm('Remove this student?')) return;
+    if(!sid||!await planyConfirm('Remove this student?')) return;
     showLoading();
     try{
         await getYearPath().collection('students').doc(sid).delete();
@@ -16109,7 +16267,7 @@ document.getElementById('assignment-form')?.addEventListener('submit', async(e)=
 
 async function deleteAssignment(id){
     const aid = id||document.getElementById('assign-id').value;
-    if(!aid||!confirm('Delete this assignment and all scores?')) return;
+    if(!aid||!await planyConfirm('Delete this assignment and all scores?')) return;
     showLoading();
     try{
         await getYearPath().collection('assignments').doc(aid).delete();
@@ -18206,7 +18364,7 @@ document.getElementById('unit-form')?.addEventListener('submit', async (e) => {
 
 async function deleteUnit() {
     const unitId = document.getElementById('unit-id').value;
-    if (!unitId || !confirm('Delete this unit?')) return;
+    if (!unitId || !await planyConfirm('Delete this unit?')) return;
     showLoading();
     try {
         await getYearPath().collection('units').doc(unitId).delete();
@@ -18287,7 +18445,7 @@ async function executeCopyDay() {
             const cls = classes.find(c => c.id === l.classId);
             return cls ? cls.name : 'class';
         }))].join(', ');
-        if (!confirm(`${conflicts.length} lesson(s) already exist on that date for: ${names}.\n\nCopy anyway?`)) return;
+        if (!await planyConfirm(`${conflicts.length} lesson(s) already exist on that date for: ${names}.\n\nCopy anyway?`)) return;
     }
 
     showLoading();
@@ -18383,7 +18541,7 @@ async function executeCopyWeek() {
             const cls = classes.find(c => c.id === l.classId);
             return cls ? cls.name : 'Unknown';
         }))].join(', ');
-        if (!confirm(`${conflicts.length} lesson(s) already exist that week for: ${names}.\n\nCopy anyway?`)) return;
+        if (!await planyConfirm(`${conflicts.length} lesson(s) already exist that week for: ${names}.\n\nCopy anyway?`)) return;
     }
 
     showLoading();
@@ -19286,7 +19444,7 @@ async function sendTeacherLinkRequest() {
 // ── Remove a link ─────────────────────────────────────────────
 
 async function removePrincipalLink(linkId) {
-    if (!confirm('Remove this teacher link? The teacher will no longer be visible in your Staff view.')) return;
+    if (!await planyConfirm('Remove this teacher link? The teacher will no longer be visible in your Staff view.')) return;
     try {
         await db.collection('principalLinks').doc(linkId).delete();
         showToast('Link removed');
@@ -19835,23 +19993,77 @@ async function savePrincipalComment() {
 
 // ── Teacher: view principal comments on their lessons ─────────────────
 
+// ── Principal feedback inbox (v6.4.0) ──────────────────────────────────
+// Principals could leave comments on a teacher's lessons, but nothing ever
+// showed them to the teacher. A 💬 button in the header (with an unread
+// count) opens the list; opening it marks everything read.
+let teacherFeedback = [];
+
 async function loadTeacherPrincipalComments() {
-    if (!currentUser || isPrincipal()) return;
+    const btn = document.getElementById('feedback-btn');
+    if (!currentUser || isPrincipal()) { btn?.classList.add('hidden'); teacherFeedback = []; return []; }
     try {
         const snap = await db.collection('principalComments')
             .where('teacherUid', '==', currentUser.uid)
-            .where('read', '==', false)
             .get();
-        const count = snap.docs.length;
-        const badge = document.getElementById('principal-badge');
-        if (badge && count > 0) {
-            // Re-use unread badge on any nav -- here we put count on settings badge
-        }
-        // Mark comments as read after loading
-        snap.docs.forEach(d => d.ref.update({ read: true }));
-        return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    } catch(e) { return []; }
+        teacherFeedback = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+            .sort((x, y) => (y.createdAt?.toMillis?.() || 0) - (x.createdAt?.toMillis?.() || 0));
+    } catch (e) {
+        console.warn('loadTeacherPrincipalComments:', e.message);
+        teacherFeedback = [];
+    }
+    updateFeedbackBadge();
+    return teacherFeedback;
 }
+
+function updateFeedbackBadge() {
+    const btn = document.getElementById('feedback-btn');
+    const badge = document.getElementById('feedback-badge');
+    if (!btn) return;
+    btn.classList.toggle('hidden', teacherFeedback.length === 0);
+    const unread = teacherFeedback.filter(c => !c.read).length;
+    if (badge) {
+        badge.textContent = unread > 9 ? '9+' : String(unread);
+        badge.classList.toggle('hidden', unread === 0);
+    }
+    btn.setAttribute('aria-label', unread ? `Feedback from your principal, ${unread} unread` : 'Feedback from your principal');
+}
+
+function openFeedbackInbox() {
+    const list = document.getElementById('feedback-list');
+    if (!list) return;
+    if (!teacherFeedback.length) {
+        list.innerHTML = '<p class="empty-state">No feedback yet.</p>';
+    } else {
+        list.innerHTML = teacherFeedback.map(c => {
+            const when = c.createdAt?.toDate ? c.createdAt.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+            const lessonLine = c.lessonTitle
+                ? `<button type="button" class="feedback-lesson" data-lesson="${escHtml(c.lessonId || '')}" data-date="${escHtml(c.date || '')}">📄 ${escHtml(c.lessonTitle)}${c.date ? ' · ' + escHtml(c.date) : ''}</button>`
+                : '';
+            return `<div class="feedback-item${c.read ? '' : ' unread'}">
+                <div class="feedback-meta"><strong>${escHtml(c.principalName || 'Principal')}</strong><span>${escHtml(when)}</span></div>
+                ${lessonLine}
+                <div class="feedback-text">${escHtml(c.text || '')}</div>
+            </div>`;
+        }).join('');
+        list.querySelectorAll('.feedback-lesson').forEach(b => b.addEventListener('click', () => {
+            const lesson = lessons.find(l => l.id === b.dataset.lesson);
+            document.getElementById('feedback-modal')?.classList.add('hidden');
+            if (lesson) { jumpToDate(new Date(lesson.date + 'T00:00:00')); renderAfterJump(); openLessonModal(lesson); }
+            else if (b.dataset.date) { jumpToDate(new Date(b.dataset.date + 'T00:00:00')); document.querySelector('[data-view="day"]')?.click(); }
+        }));
+    }
+    document.getElementById('feedback-modal')?.classList.remove('hidden');
+    // Mark everything read (the rule lets the teacher change only read/readAt)
+    teacherFeedback.filter(c => !c.read).forEach(c => {
+        c.read = true;
+        db.collection('principalComments').doc(c.id)
+            .update({ read: true, readAt: firebase.firestore.FieldValue.serverTimestamp() })
+            .catch(e => console.warn('mark feedback read:', e.message));
+    });
+    updateFeedbackBadge();
+}
+document.getElementById('feedback-btn')?.addEventListener('click', openFeedbackInbox);
 
 // ============================================================
 // HELP & GUIDE — slide-in panel  (added v5.18.0)
@@ -19864,7 +20076,7 @@ const HELP_SECTIONS = [
         img: 'help-shots/month.jpg', imgCap: 'The Month view — your home base',
         lead: 'Plany keeps your whole year of teaching in one place — lessons, classes, students, sub plans, and AI helpers. Everything is reached from the bar along the bottom of the screen.',
         steps: [
-            'The <strong>bottom navigation bar</strong> has seven tabs: <strong>Year, Month, Week, Day, Classes, Students,</strong> and <strong>AI</strong>. Tap any one to switch views.',
+            'The <strong>bottom navigation bar</strong> has seven tabs: <strong>Year, Month, Week, Day, Classes, Students,</strong> and <strong>AI</strong>. Tap any one to switch views. On a phone, <strong>Year, Classes</strong> and <strong>Students</strong> are under <strong>☰ More</strong>.',
             'The <strong>search bar</strong> at the top finds any lesson, event, or class instantly — or press <span class="help-kbd">Ctrl</span>/<span class="help-kbd">⌘</span> + <span class="help-kbd">K</span>.',
             'Your <strong>name and photo</strong> are in the top-right corner — tap them to edit your profile.',
             'Plany is a <strong>web app you can install</strong>. Look for the <strong>📲 Install</strong> button to add it to your phone or computer like a real app — it even works offline.'

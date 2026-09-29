@@ -1,5 +1,5 @@
-// PLANY Service Worker - v6.3.2
-const CACHE_NAME = 'plany-v6.3.2';
+// PLANY Service Worker - v6.4.0
+const CACHE_NAME = 'plany-v6.4.0';
 const STATIC_ASSETS = [
     '/',
     '/index.html',

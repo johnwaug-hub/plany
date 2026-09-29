@@ -2,6 +2,23 @@
 
 A modern lesson planning app for teachers with an 80's inspired design.
 
+## What's New in v6.4.0 - Principal Feedback, Phone Nav, Real Dialogs 💬
+
+- **Principal feedback inbox.** Comments your principal leaves on your lessons now reach you: a 💬 button in
+  the header shows an unread count, opens the list, and links each comment to its lesson. Opening it marks
+  them read (the Firestore rule lets a teacher change only `read`/`readAt`).
+- **Phone navigation:** on screens under 600px the bottom bar is Month · Week · Day · AI · ☰ More, with Year,
+  Classes and Students in the More menu. No more "CLASSESSTUDENTS".
+- **Styled dialogs instead of browser pop-ups.** All 20 confirmations and the document preview use Plany's
+  own dialog (`planyConfirm()` / `planyAlert()`). Delete questions focus **Cancel** so a stray Enter can't
+  delete anything; Esc cancels.
+- **Account switching is clean:** friend, shared-lesson and shared-resource listeners now start after sign-in
+  (they could miss a fresh login) and stop on sign-out; a shared AI key, the curriculum library, inboxes and
+  badges from the previous account are cleared.
+- **Shared PDFs work in the recipient's page picker** (the file link is now included), and an imported shared
+  resource keeps only known fields -- never the sender's storage path.
+- **Deploy:** rules changed -- `npm run deploy`.
+
 ## What's New in v6.3.2 - One AI Key Everywhere 🔑
 
 - **Fixed: "API key is invalid" on the classroom board.** A device holding an old key kept using it, and on
