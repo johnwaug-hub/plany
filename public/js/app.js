@@ -1,4 +1,4 @@
-// PLANY - Main Application v6.4.0
+// PLANY - Main Application v6.5.0
 // ==================================================
 
 // Service Worker Update Handler - ensures fresh content
@@ -939,6 +939,16 @@ function buildTimeStr(cls, day) {
 // slotIndex -1  = "spans all sessions" — matches every slot card for that class.
 // slotIndex 0+  = specific session index.
 // null/undefined (legacy) = slot 0 for backward compat.
+// v6.5.0: for summaries/PDFs that show one line per class -- a class with
+// several sessions on a day used to show only the first session's lesson.
+// Returns the first lesson with every session's title joined by " / ".
+function mergedLessonForClass(dayLessons, classId) {
+    const list = dayLessons.filter(l => l.classId === classId)
+        .sort((a, b) => (a.slotIndex ?? 0) - (b.slotIndex ?? 0));
+    if (list.length <= 1) return list[0];
+    return { ...list[0], title: list.map(l => l.title).filter(Boolean).join(' / ') };
+}
+
 function findLessonForSlot(dayLessons, classId, slotIndex) {
     // First: look for a span-all lesson (slotIndex === -1) — it wins for every slot
     const spanAll = dayLessons.find(l => l.classId === classId && l.slotIndex === -1);
@@ -1064,10 +1074,15 @@ function isSameDay(date1, date2) {
     return formatDate(date1) === formatDate(date2);
 }
 
+// v6.5.0: each toast gets its full time on screen (a second toast used to
+// vanish early on the first one's timer); longer messages stay longer.
+let _toastTimer = null;
 function showToast(message) {
     elements.toast.textContent = message;
     elements.toast.classList.remove('hidden');
-    setTimeout(() => elements.toast.classList.add('hidden'), 3000);
+    clearTimeout(_toastTimer);
+    const ms = Math.min(8000, Math.max(3000, String(message).length * 60));
+    _toastTimer = setTimeout(() => elements.toast.classList.add('hidden'), ms);
 }
 
 function showLoading() {
@@ -1328,6 +1343,9 @@ auth.onAuthStateChanged(async (user) => {
     } else {
         console.log('No user logged in');
         currentUser = null;
+        // v6.5.0: signed-out launches also dismiss the native splash (they sat
+        // on it for the 4-second fallback)
+        document.dispatchEvent(new CustomEvent('plany:auth-resolved'));
         resetUserState();
         elements.appScreen.classList.remove('active');
         elements.appScreen.classList.add('hidden');
@@ -1597,8 +1615,22 @@ function getYearPath() {
     return db.collection('users').doc(currentUser.uid).collection('years').doc(settings.schoolYear);
 }
 
-// Load data for a specific school year
-async function loadSchoolYearData(schoolYear) {
+// Load data for a specific school year.
+// v6.5.0: loads run one at a time, in the order they were asked for, so a
+// slow earlier load (quick year switching, or signing out and in as someone
+// else) can never finish last and overwrite the newer data.
+let _yearLoadChain = Promise.resolve();
+function loadSchoolYearData(schoolYear) {
+    const run = () => _loadSchoolYearDataNow(schoolYear);
+    const p = _yearLoadChain.then(run, run);
+    _yearLoadChain = p.catch(() => {});
+    return p;
+}
+
+async function _loadSchoolYearDataNow(schoolYear) {
+    if (!currentUser) return;
+    const loadUid = currentUser.uid;
+    const stale = () => !currentUser || currentUser.uid !== loadUid;
     const yearPath = db.collection('users').doc(currentUser.uid).collection('years').doc(schoolYear);
 
     // Materialize this year document (give it a field) so it appears in
@@ -1629,20 +1661,19 @@ async function loadSchoolYearData(schoolYear) {
     // Persist the school year being viewed so hard refresh restores it
     try { localStorage.setItem('plany_last_school_year', schoolYear); } catch(e) {}
     
-    // Load classes for this school year
-    const classesSnap = await yearPath.collection('classes').orderBy('name').get();
+    // Load classes, lessons, events and breaks together (v6.5.0: in parallel,
+    // and only applied if the same account is still signed in)
+    const [classesSnap, lessonsSnap, eventsSnap, breaksDoc] = await Promise.all([
+        yearPath.collection('classes').orderBy('name').get(),
+        yearPath.collection('lessons').orderBy('date').get(),
+        yearPath.collection('events').orderBy('startDate').get(),
+        yearPath.collection('settings').doc('breaks').get()
+    ]);
+    if (stale()) return;
     classes = classesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    
-    // Load lessons for this school year
-    const lessonsSnap = await yearPath.collection('lessons').orderBy('date').get();
     lessons = lessonsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    
-    // Load events for this school year
-    const eventsSnap = await yearPath.collection('events').orderBy('startDate').get();
     events = eventsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     
-    // Load breaks for this school year
-    const breaksDoc = await yearPath.collection('settings').doc('breaks').get();
     if (breaksDoc.exists) {
         settings.breaks = breaksDoc.data().breaks || [];
     } else {
@@ -1661,6 +1692,7 @@ async function loadSchoolYearData(schoolYear) {
     await loadAssignments();
     await loadClassGradeSettings();
     await loadAttendance();
+    if (stale()) return;
 
     // Render everything
     renderCalendar();
@@ -3553,6 +3585,36 @@ function labelIconButtons(root = document) {
 labelIconButtons();
 document.getElementById('toast')?.setAttribute('aria-live', 'polite');
 
+// v6.5.0: most form labels sat next to their field without for="", so
+// screen readers read the field with no name. Connect each loose <label>
+// to the field right after it, and give label-less fields their placeholder
+// as a name.
+let _autoFieldId = 0;
+function associateFormLabels(root = document) {
+    const FIELD = 'input:not([type=hidden]):not([type=checkbox]):not([type=radio]), select, textarea';
+    root.querySelectorAll('label:not([for])').forEach(label => {
+        if (label.querySelector('input, select, textarea')) return;          // wraps its field already
+        let el = label.nextElementSibling, field = null;
+        for (let hops = 0; el && hops < 3 && !field; hops++, el = el.nextElementSibling) {
+            field = el.matches(FIELD) ? el : el.querySelector(FIELD);
+        }
+        if (!field) return;
+        if (!field.id) field.id = 'auto-field-' + (++_autoFieldId);
+        if (!document.querySelector(`label[for="${field.id}"]`)) label.htmlFor = field.id;
+    });
+    root.querySelectorAll(FIELD).forEach(f => {
+        const named = f.getAttribute('aria-label') || f.getAttribute('aria-labelledby') ||
+            (f.id && document.querySelector(`label[for="${CSS.escape(f.id)}"]`)) || f.closest('label');
+        if (named || f.type === 'file') return;
+        const prevText = (f.previousElementSibling && /^(SPAN|LABEL|STRONG|B)$/.test(f.previousElementSibling.tagName))
+            ? f.previousElementSibling.textContent.trim().replace(/[:：]\s*$/, '') : '';
+        const name = f.placeholder || f.title || prevText ||
+            (f.id ? f.id.replace(/[-_]+/g, ' ').replace(/\b(pm|gb|qr|es|sub|ai)\b/g, '').trim() : '');
+        if (name) f.setAttribute('aria-label', name);
+    });
+}
+associateFormLabels();
+
 function topOpenModal() {
     for (let i = _modalOpenOrder.length - 1; i >= 0; i--) {
         if (!_modalOpenOrder[i].classList.contains('hidden')) return _modalOpenOrder[i];
@@ -4181,7 +4243,8 @@ elements.lessonForm.addEventListener('submit', async (e) => {
             // Update existing lesson
             await yearPath.collection('lessons').doc(lessonId).update(lessonData);
             const index = lessons.findIndex(l => l.id === lessonId);
-            lessons[index] = { ...lessons[index], ...lessonData };
+            if (index >= 0) lessons[index] = { ...lessons[index], ...lessonData };
+            else lessons.push({ id: lessonId, ...lessonData });   // v6.5.0: never write lessons[-1]
 
             // If this lesson was just promoted to "spans all sessions," any
             // other per-session lesson still sitting on a different slot that
@@ -4307,6 +4370,7 @@ elements.deleteLessonBtn.addEventListener('click', async () => {
 
         // Record undo action
         if (deletedLesson) {
+            let restoredId = null;
             recordAction({
                 type: 'delete_lesson',
                 data: deletedLesson,
@@ -4315,12 +4379,13 @@ elements.deleteLessonBtn.addEventListener('click', async () => {
                     const { id, ...lessonData } = deletedLesson;
                     const docRef = await getYearPath().collection('lessons').add(lessonData);
                     lessons.push({ id: docRef.id, ...lessonData });
+                    restoredId = docRef.id;   // v6.5.0: redo deletes exactly this one
                     renderCalendar();
                     renderWeek();
                     updateStats();
                 },
                 redo: async () => {
-                    const lessonToDelete = lessons.find(l => l.title === deletedLesson.title && l.date === deletedLesson.date);
+                    const lessonToDelete = lessons.find(l => l.id === restoredId);
                     if (lessonToDelete) {
                         await getYearPath().collection('lessons').doc(lessonToDelete.id).delete();
                         lessons = lessons.filter(l => l.id !== lessonToDelete.id);
@@ -4857,8 +4922,11 @@ document.getElementById('add-event-to-day').addEventListener('click', () => {
 // Loaded the first time a feature needs them (and pre-loaded quietly after
 // sign-in), instead of blocking every page load.
 const LIBS = {
-    pdfjs: { src: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', ready: () => typeof pdfjsLib !== 'undefined',
-             after: () => { pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; } },
+    // v6.5.0: PDF.js 4.10.38 (legacy build, for older classroom devices),
+    // served from plany.work itself -- an ES module, so it's imported rather
+    // than added as a script tag, and its worker runs same-origin.
+    pdfjs: { module: '/vendor/pdfjs/pdf.min.mjs', ready: () => typeof pdfjsLib !== 'undefined',
+             after: () => { pdfjsLib.GlobalWorkerOptions.workerSrc = '/vendor/pdfjs/pdf.worker.min.mjs'; } },
     jspdf: { src: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', ready: () => !!window.jspdf },
     xlsx:  { src: 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js', ready: () => typeof XLSX !== 'undefined' },
     jszip: { src: 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js', ready: () => typeof JSZip !== 'undefined' }
@@ -4869,6 +4937,16 @@ function ensureLib(name) {
     if (!lib) return Promise.reject(new Error('Unknown library ' + name));
     if (lib.ready()) { if (lib.after && !lib._done) { lib.after(); lib._done = true; } return Promise.resolve(); }
     if (_libPromises[name]) return _libPromises[name];
+    if (lib.module) {
+        _libPromises[name] = import(lib.module).then(m => {
+            window.pdfjsLib = m;
+            if (lib.after) { lib.after(); lib._done = true; }
+        }).catch(e => {
+            delete _libPromises[name];
+            throw new Error('Could not load a tool Plany needs. Check your internet connection and try again.');
+        });
+        return _libPromises[name];
+    }
     _libPromises[name] = new Promise((resolve, reject) => {
         const el = document.createElement('script');
         el.src = lib.src;
@@ -4904,7 +4982,7 @@ function preloadLibsWhenIdle() {
 // Set PDF.js worker - retry if not loaded yet
 function initPdfWorker() {
     if (typeof pdfjsLib !== 'undefined' && pdfjsLib.GlobalWorkerOptions) {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        pdfjsLib.GlobalWorkerOptions.workerSrc = '/vendor/pdfjs/pdf.worker.min.mjs';
         return true;
     }
     return false;
@@ -5618,7 +5696,7 @@ function printDayPDF(dateStr) {
                 yPos = 20;
             }
             
-            const lesson = dayLessons.find(l => l.classId === cls.id);
+            const lesson = mergedLessonForClass(dayLessons, cls.id);
             const timeStr = buildTimeStr(cls, dayOfWeek);
             // Class header with time
             doc.setFillColor(240, 240, 240);
@@ -5796,7 +5874,7 @@ function printWeekPDF() {
             yPos += 8;
         } else {
             for (const cls of dayClasses) {
-                const lesson = dayLessons.find(l => l.classId === cls.id);
+                const lesson = mergedLessonForClass(dayLessons, cls.id);
                 
                 // Get time
                 const timeStr = buildTimeStr(cls, dayOfWeek);
@@ -5915,7 +5993,7 @@ function printMonthPDF() {
         
         for (const cls of dayClasses) {
             if (itemCount >= 4) break;
-            const lesson = dayLessons.find(l => l.classId === cls.id);
+            const lesson = mergedLessonForClass(dayLessons, cls.id);
             const hasLesson = !!lesson;
             
             // Truncate name and use simple ASCII
@@ -6066,6 +6144,7 @@ async function extractTextFromPdf(file) {
             const pageText = textContent.items.map(item => item.str).join(' ');
             fullText += pageText + '\n';
         }
+        try { pdf.destroy(); } catch (_) {}
         return fullText.trim().substring(0, 12000);
     } catch (e) {
         console.warn('PDF text extraction failed for', file.name, e);
@@ -6617,6 +6696,7 @@ async function deleteCurriculumSelected() {
     const lt = document.querySelector('.loading-text');
     if (lt) lt.textContent = `Deleting ${ids.length} resource${ids.length !== 1 ? 's' : ''}…`;
     let ok = 0;
+    const deleted = new Set();
     try {
         const col = db.collection('users').doc(currentUser.uid).collection('curriculum');
         // Firestore batches cap at 500 writes
@@ -6626,20 +6706,21 @@ async function deleteCurriculumSelected() {
             chunk.forEach(id => batch.delete(col.doc(id)));
             await batch.commit();
             ok += chunk.length;
+            chunk.forEach(id => deleted.add(id));
             // Best-effort: also remove any stored original files
             chunk.forEach(id => {
                 const d = curriculumDocs.find(x => x.id === id);
                 if (d?.storagePath) { try { storage.ref(d.storagePath).delete().catch(() => {}); } catch (e) {} }
             });
         }
-        const del = new Set(ids);
-        curriculumDocs = curriculumDocs.filter(d => !del.has(d.id));
-        renderCurriculumLibrary(document.querySelector('.curriculum-filter-btn.active')?.dataset?.filter || 'all');
         showToast(`🗑️ Deleted ${ok} resource${ok !== 1 ? 's' : ''}`);
     } catch (e) {
         console.error('Bulk delete error:', e);
-        showToast('❌ Some deletes failed: ' + (e.message || 'error'));
+        showToast(`❌ Deleted ${ok} of ${ids.length}; the rest failed: ` + (e.message || 'error'));
     } finally {
+        // v6.5.0: drop whatever WAS deleted from the list, even after a failure
+        curriculumDocs = curriculumDocs.filter(d => !deleted.has(d.id));
+        renderCurriculumLibrary(document.querySelector('.curriculum-filter-btn.active')?.dataset?.filter || 'all');
         hideLoading();
     }
 }
@@ -8893,7 +8974,7 @@ function displaySmartMatchPreview(matchedCount, unmatchedCount) {
             <input type="checkbox" id="smart-lesson-${index}" ${lesson.selected ? 'checked' : ''} data-index="${index}">
             <span class="import-event-date">${formatDisplayDateShort(lesson.date)}</span>
             <span class="import-event-title">${lesson.lessonId}</span>
-            <span class="match-indicator" style="font-size: 0.65rem; padding: 0.15rem 0.35rem; border-radius: 3px; ${lesson.matched ? 'background: #2ecc71; color: white;' : 'background: #e74c3c; color: white;'}">${lesson.matched ? '✓' : '?'}</span>
+            <span class="match-indicator" style="font-size: 11px; padding: 0.15rem 0.35rem; border-radius: 3px; ${lesson.matched ? 'background: rgba(95,227,155,0.18); color: var(--success-color);' : 'background: rgba(255,138,128,0.18); color: var(--error-color);'}">${lesson.matched ? '✓' : '?'}</span>
         </div>
     `).join('');
     
@@ -8911,7 +8992,7 @@ function displaySmartMatchPreview(matchedCount, unmatchedCount) {
         });
     });
     
-    summary.innerHTML = `<span style="color: #2ecc71;"><strong>${matchedCount}</strong> matched with full content</span> | <span style="color: #e74c3c;"><strong>${unmatchedCount}</strong> title only</span>`;
+    summary.innerHTML = `<span style="color: var(--success-color);"><strong>${matchedCount}</strong> matched with full content</span> | <span style="color: var(--error-color);"><strong>${unmatchedCount}</strong> title only</span>`;
     
     preview.classList.remove('hidden');
 }
@@ -8941,8 +9022,28 @@ async function smartImportLessons() {
         let imported = 0;
         let skipped = 0;
         const newlyImported = [];
+        const importedOnDate = {};   // date -> lesson created by THIS import
 
         for (const lesson of selectedLessons) {
+            // v6.5.0: a pacing cell like "Day 2 & 3" gives two lessons for one
+            // date. The second used to be skipped as a duplicate; now it's
+            // merged into the lesson this import just created for that date.
+            const mine = importedOnDate[lesson.date];
+            if (mine) {
+                const extraTitle = lesson.lessonTitle ? `${lesson.lessonId}: ${lesson.lessonTitle}` : lesson.lessonId;
+                const extraText = [lesson.topic ? `Topic: ${lesson.topic}` : '', lesson.notes || ''].filter(Boolean).join('\n\n');
+                mine.title = `${mine.title} + ${extraTitle}`;
+                if (extraText) mine.activities = [mine.activities, extraText].filter(Boolean).join('\n\n---\n\n');
+                mine.curriculumRef = `${mine.curriculumRef}, ${lesson.lessonId}`;
+                await yearPath.collection('lessons').doc(mine.id).update({
+                    title: mine.title, activities: mine.activities, curriculumRef: mine.curriculumRef,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                const local = lessons.find(l => l.id === mine.id);
+                if (local) Object.assign(local, { title: mine.title, activities: mine.activities, curriculumRef: mine.curriculumRef });
+                continue;
+            }
+
             // Check if lesson already exists
             const exists = lessons.find(l =>
                 l.date === lesson.date &&
@@ -8990,6 +9091,7 @@ async function smartImportLessons() {
             const docRef = await yearPath.collection('lessons').add(lessonData);
             lessons.push({ id: docRef.id, ...lessonData });
             newlyImported.push(lessonData);
+            importedOnDate[lesson.date] = { id: docRef.id, title: lessonData.title, activities: lessonData.activities, curriculumRef: lessonData.curriculumRef };
             imported++;
         }
 
@@ -9724,7 +9826,7 @@ function buildNewsletterContext() {
             const dayLessons = lessons.filter(l => l.date === dateStr);
 
             const classLines = dayClasses.map(cls => {
-                const lesson = dayLessons.find(l => l.classId === cls.id);
+                const lesson = mergedLessonForClass(dayLessons, cls.id);
                 if (lesson) {
                     return `  • ${cls.name}${cls.subject ? ' (' + cls.subject + ')' : ''}: ${lesson.title}${lesson.standards ? ' — ' + lesson.standards.substring(0, 80) : ''}`;
                 }
@@ -10025,13 +10127,12 @@ function copyNewsletterOutput(elId) {
 }
 
 // Shared print template for any newsletter type — one visual style for all three.
-function openNewsletterPrintWindow({ title, subtitle, bodyHtml }) {
+function openNewsletterPrintWindow({ title, subtitle, bodyHtml, v = '0.4in' }) {   // spec: 0.5in only for the year newsletter
     const win = openPrintWindow();
     win.document.write(preparePrintDoc(`<!DOCTYPE html><html><head><meta charset="UTF-8">
 <title>${title}</title>
 <style>
-  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; color: #222;
-         max-width: 680px; margin: 0 auto; padding: 40px 32px; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; color: #222; margin: 0; }
   @page { margin: 0.6in; }
   h1 { font-size: 22px; color: #FF6B9D; border-bottom: 3px solid #FF6B9D; padding-bottom: 8px; margin-bottom: 4px; }
   h3.newsletter-section-heading { font-size: 15px; color: #7B5EA7; margin: 22px 0 8px; }
@@ -10046,7 +10147,7 @@ function openNewsletterPrintWindow({ title, subtitle, bodyHtml }) {
 <h1>📰 ${title}</h1>
 ${subtitle ? `<div class="meta">${subtitle}</div>` : ''}
 ${bodyHtml}
-</body></html>`, {v:'0.5in',h:'0.3in'}));
+</body></html>`, {v, h:'0.3in'}));
     win.document.close();
     win.onload = () => setTimeout(() => { win.focus(); win.print(); }, 400);
 }
@@ -10161,13 +10262,13 @@ function buildYearNewsletterContext() {
     });
 
     const keyTypes = ['first-day','last-day','holiday','break','no-school','grading','conference'];
+    // v6.5.0: every key date (was capped at 20, which dropped spring break and
+    // the last day on a detailed district calendar), no-school via the single
+    // gatekeeper, and events without a start date can't crash the sort.
     const keyEvents = events
-        .filter(e => keyTypes.includes(e.type) ||
-            (e.title && (e.title.toLowerCase().includes('break') ||
-                         e.title.toLowerCase().includes('holiday') ||
-                         e.title.toLowerCase().includes('no school'))))
+        .filter(e => e.startDate && (keyTypes.includes(e.type) || isNoSchoolEvent(e)))
         .sort((a, b) => a.startDate.localeCompare(b.startDate))
-        .slice(0, 20)
+        .slice(0, 60)
         .map(e => {
             const d = new Date(e.startDate + 'T00:00:00');
             const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -10187,7 +10288,10 @@ function buildYearNewsletterContext() {
 
     const pacingBlocks = Object.entries(bySubject).map(([subj, docs]) => {
         const names = docs.map(d => d.name).join(', ');
-        const excerpt = docs[0].content.substring(0, 1000).replace(/\s+/g, ' ').trim();
+        // v6.5.0: sample every document in the subject (was the first 1,000
+        // characters of the first one only)
+        const perDoc = Math.max(600, Math.floor(4000 / docs.length));
+        const excerpt = docs.slice(0, 6).map(d => d.content.substring(0, perDoc).replace(/\s+/g, ' ').trim()).join('\n...\n');
         return 'SUBJECT: ' + subj.toUpperCase() + '\nDocuments: ' + names + '\nContent:\n' + excerpt;
     });
 
@@ -10277,6 +10381,7 @@ function printYearNewsletter() {
     openNewsletterPrintWindow({
         title: `Year-at-a-Glance · ${schoolYear}`,
         subtitle: '',
+        v: '0.5in',
         bodyHtml: el.innerHTML
     });
 }
@@ -10607,7 +10712,7 @@ function renderSharedResourceInbox() {
                     <div class="shared-resource-meta">
                         From <strong>${escHtml(item.fromName)}</strong>
                         · ${escHtml(item.resource?.subject || 'other')} · ${formatFileSize(item.resource?.size || 0)}
-                        ${item.resource?.hasContent ? '<span style="color:#27ae60;font-size:0.75rem;"> ✅ AI-readable</span>' : ''}
+                        ${item.resource?.hasContent ? '<span style="color:var(--success-color);font-size:12px;"> ✅ AI-readable</span>' : ''}
                     </div>
                     ${item.note ? `<div class="shared-resource-note">"${escHtml(item.note)}"</div>` : ''}
                 </div>
@@ -10671,10 +10776,15 @@ async function importSharedResource(itemId) {
     hideLoading();
 }
 
+// v6.5.0: ✕ removes the item from your inbox (it only marked it read before)
 async function dismissSharedResource(itemId) {
     try {
-        await db.collection('sharedCurriculum').doc(itemId).update({ read: true });
-    } catch(e) { console.warn('dismiss error:', e); }
+        await db.collection('sharedCurriculum').doc(itemId).delete();
+        sharedResourceInbox = sharedResourceInbox.filter(r => r.id !== itemId);
+        sharedResourceUnread = sharedResourceInbox.filter(r => !r.read).length;
+        renderSharedResourceInbox();
+        updateResourceInboxBadge();
+    } catch(e) { console.warn('dismiss error:', e); showToast('Could not remove it. Try again.'); }
 }
 
 function initCurriculumSharing() {
@@ -11072,6 +11182,7 @@ function handleKeyboardShortcut(e) {
     if (isInput) return;
 
     const _k = (e.key || '').toLowerCase();
+    if (typeof _previewTeacher !== 'undefined' && _previewTeacher && (e.ctrlKey || e.metaKey) && (_k === 'z' || _k === 'y')) return;
     // Ctrl/Cmd + Z for undo
     if ((e.ctrlKey || e.metaKey) && _k === 'z' && !e.shiftKey) {
         e.preventDefault();
@@ -11092,9 +11203,14 @@ function handleKeyboardShortcut(e) {
         return;
     }
     
+    // v6.5.0: while a principal previews a teacher's Plany (read-only),
+    // the create shortcuts would have saved into the principal's own account.
+    const _sk = (e.key || '').toLowerCase();
+    if (typeof _previewTeacher !== 'undefined' && _previewTeacher && ['n', 'e', 'c'].includes(_sk) && !e.ctrlKey && !e.metaKey) return;
+
     // Navigation shortcuts. Guard against e.key being unset -- some
     // synthetic/IME key events reach this handler without a populated key.
-    switch ((e.key || '').toLowerCase()) {
+    switch (_sk) {
         case 't':
             // Go to today
             goToToday();
@@ -13417,10 +13533,17 @@ async function pagePickerLoadResource(resourceId) {
         const resp = await fetch(doc.storageUrl);
         if (!resp.ok) throw new Error('could not fetch file');
         const buf = await resp.arrayBuffer();
+        // v6.5.0: free the previous PDF, and stop an older render loop if the
+        // teacher switched resources mid-way (thumbnails used to mix).
+        const runId = (_ppCtx.runId = (_ppCtx.runId || 0) + 1);
+        try { _ppCtx.pdf?.destroy(); } catch (_) {}
         const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buf), isEvalSupported: false }).promise;
+        if (runId !== _ppCtx.runId) { pdf.destroy(); return; }
+        _ppCtx.pdf = pdf;
         _ppCtx.numPages = pdf.numPages;
         const cap = Math.min(pdf.numPages, 300); // safety ceiling only
         for (let p = 1; p <= cap; p++) {
+            if (runId !== _ppCtx.runId) return;
             status.textContent = `Rendering pages… ${p} / ${cap}`;
             try {
                 const page = await pdf.getPage(p);
@@ -13517,6 +13640,7 @@ async function renderPdfPagesByNumber(url, pageNums) {
             await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
             out.push(canvas.toDataURL('image/jpeg', 0.85));
         }
+        try { pdf.destroy(); } catch (_) {}
     } catch (e) {
         console.warn('renderPdfPagesByNumber:', e.message);
     }
@@ -13688,7 +13812,7 @@ function buildAnchorChartContext() {
 
         const lines = dayClasses.map(cls => {
             if (cls.subject) subjectsSeen.add(cls.subject);
-            const lesson = dayLessons.find(l => l.classId === cls.id);
+            const lesson = mergedLessonForClass(dayLessons, cls.id);
             const parts = [`  • ${cls.name}${cls.subject ? ' (' + cls.subject + ')' : ''}`];
             if (lesson) {
                 if (lesson.title) parts.push(`topic: ${lesson.title}`);
@@ -15201,7 +15325,7 @@ function printAttendanceReport() {
 
     const win = openPrintWindow();
     win.document.write(preparePrintDoc(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Attendance — ${clsName}</title>
-        <style>body{font-family:Arial,sans-serif;padding:20px;font-size:13px;}
+        <style>body{font-family:Arial,sans-serif;margin:0;font-size:13px;}
         .no-print{margin-bottom:12px;} @media print{.no-print{display:none!important;}}</style>
         </head><body>
         <div class="no-print"><button onclick="window.print()" style="padding:6px 14px;background:#7B5EA7;color:white;border:none;border-radius:4px;cursor:pointer;">🖨️ Print</button></div>
@@ -15383,7 +15507,7 @@ function printSeatingChart() {
     }
     const win = openPrintWindow();
     win.document.write(preparePrintDoc(`<!DOCTYPE html><html><head><title>Seating Chart</title>
-        <style>body{font-family:Arial,sans-serif;padding:20px;}h2{text-align:center;}table{border-collapse:collapse;margin:0 auto;}
+        <style>body{font-family:Arial,sans-serif;margin:0;}h2{text-align:center;}table{border-collapse:collapse;margin:0 auto;}
         .front{text-align:center;font-size:12px;color:#666;margin-bottom:10px;letter-spacing:2px;}
         @media print{.no-print{display:none}}</style></head><body>
         <button class="no-print" onclick="window.print()" style="margin-bottom:12px;padding:6px 14px;cursor:pointer;">Print</button>
@@ -20073,7 +20197,7 @@ const HELP_SECTIONS = [
     {
         id: 'getting-started', icon: '👋', title: 'Getting Started',
         sub: 'A 60-second tour of Plany',
-        img: 'help-shots/month.jpg', imgCap: 'The Month view — your home base',
+        img: 'help-shots/month.webp', imgCap: 'The Month view — your home base',
         lead: 'Plany keeps your whole year of teaching in one place — lessons, classes, students, sub plans, and AI helpers. Everything is reached from the bar along the bottom of the screen.',
         steps: [
             'The <strong>bottom navigation bar</strong> has seven tabs: <strong>Year, Month, Week, Day, Classes, Students,</strong> and <strong>AI</strong>. Tap any one to switch views. On a phone, <strong>Year, Classes</strong> and <strong>Students</strong> are under <strong>☰ More</strong>.',
@@ -20086,7 +20210,7 @@ const HELP_SECTIONS = [
     {
         id: 'school-year', icon: '📆', title: 'Set Up Your School Year',
         sub: 'Year tab — start here every August',
-        img: 'help-shots/year.jpg', imgCap: 'The Year tab shows all 12 months at a glance',
+        img: 'help-shots/year.webp', imgCap: 'The Year tab shows all 12 months at a glance',
         lead: 'The Year tab is where you tell Plany when school starts and ends, and mark your breaks, holidays, and grading days. This powers the whole calendar — Plany automatically dims no-school days everywhere else.',
         steps: [
             'Tap <strong>Year</strong> in the bottom bar.',
@@ -20101,7 +20225,7 @@ const HELP_SECTIONS = [
     {
         id: 'classes', icon: '🎓', title: 'Create Your Classes',
         sub: 'Classes tab — set up once',
-        img: 'help-shots/classes.jpg', imgCap: 'Each class is a colored card with its weekly schedule',
+        img: 'help-shots/classes.webp', imgCap: 'Each class is a colored card with its weekly schedule',
         lead: 'A “class” in Plany is any recurring block in your day — a subject, an intervention group, even lunch and recess. Each one gets a color and a weekly schedule so lessons land on the right days automatically.',
         steps: [
             'Tap <strong>Classes</strong> in the bottom bar.',
@@ -20116,7 +20240,7 @@ const HELP_SECTIONS = [
     {
         id: 'lessons', icon: '✏️', title: 'Plan Your Lessons',
         sub: 'Day & Week tabs — your daily work',
-        img: 'help-shots/day.jpg', imgCap: 'The Day view lists every class and lets you add a lesson to each',
+        img: 'help-shots/day.webp', imgCap: 'The Day view lists every class and lets you add a lesson to each',
         lead: 'Lessons are the heart of Plany. You can add them from the Day, Week, or Month view — wherever you happen to be looking.',
         steps: [
             'Open the <strong>Day</strong> or <strong>Week</strong> tab and find the class you want to plan.',
@@ -20131,7 +20255,7 @@ const HELP_SECTIONS = [
     {
         id: 'calendar-views', icon: '📅', title: 'The Calendar Views',
         sub: 'Year · Month · Week · Day',
-        img: 'help-shots/week.jpg', imgCap: 'The Week view — five days side by side with lesson cards',
+        img: 'help-shots/week.webp', imgCap: 'The Week view — five days side by side with lesson cards',
         lead: 'The same lessons and events appear in four zoom levels. Pick whichever fits what you’re doing.',
         steps: [
             '<strong>Year</strong> — the big picture: all 12 months, school-day counts, and year setup.',
@@ -20145,7 +20269,7 @@ const HELP_SECTIONS = [
     {
         id: 'events', icon: '📌', title: 'No-School Days & Events',
         sub: 'Breaks, holidays, meetings & more',
-        img: 'help-shots/event.jpg', imgCap: 'The Add Event form, with the Event Type menu',
+        img: 'help-shots/event.webp', imgCap: 'The Add Event form, with the Event Type menu',
         lead: 'Events mark anything that isn’t a lesson — holidays, breaks, grading days, assemblies, staff meetings, conferences. No-school event types automatically shade those days and cancel classes everywhere in Plany.',
         steps: [
             'From the <strong>Day</strong> view tap <strong>+ Event</strong>, or press <span class="help-kbd">E</span> from anywhere.',
@@ -20160,7 +20284,7 @@ const HELP_SECTIONS = [
     {
         id: 'sub-day', icon: '🧑‍🏫', title: 'Sub Days & Sub Packets',
         sub: 'Everything a substitute needs',
-        img: 'help-shots/sub-day.jpg', imgCap: 'The Sub Day Packet builder',
+        img: 'help-shots/sub-day.webp', imgCap: 'The Sub Day Packet builder',
         lead: 'When you’re out, Plany builds a complete substitute packet — your routines, seating, class instructions, and student work — ready to print.',
         steps: [
             'Open the <strong>Day</strong> you’ll be absent and tap <strong>🧑‍🏫 Sub Day</strong>.',
@@ -20175,7 +20299,7 @@ const HELP_SECTIONS = [
     {
         id: 'students', icon: '👥', title: 'Students, Grades & Attendance',
         sub: 'Students tab',
-        img: 'help-shots/students.jpg', imgCap: 'The Students tab, with its six sub-sections',
+        img: 'help-shots/students.webp', imgCap: 'The Students tab, with its six sub-sections',
         lead: 'The Students tab is your classroom roster and record book — grades, IEP notes, seating charts, parent contact log, and attendance, all in one place.',
         steps: [
             'Tap <strong>Students</strong> in the bottom bar.',
@@ -20189,7 +20313,7 @@ const HELP_SECTIONS = [
     {
         id: 'ai-key', icon: '🔑', title: 'Turn On the AI Features',
         sub: 'One-time setup — do this first',
-        img: 'help-shots/settings.jpg', imgCap: 'AI Provider & API Key, on the AI tab',
+        img: 'help-shots/settings.webp', imgCap: 'AI Provider & API Key, on the AI tab',
         lead: 'Plany’s AI tools — Lesson Fill, Scan & Import, the Quiz Generator, and Student Packets — run on your own AI key. It’s a one-time setup and your key stays private to your account.',
         steps: [
             'Tap the <strong>AI</strong> tab, then scroll to <strong>⚙️ Settings → AI Provider &amp; API Key</strong>.',
@@ -20203,7 +20327,7 @@ const HELP_SECTIONS = [
     {
         id: 'ai-lesson-fill', icon: '✨', title: 'AI Lesson Fill',
         sub: 'Draft a whole range of lessons',
-        img: 'help-shots/lesson-fill.jpg', imgCap: 'AI Lesson Fill — pick a class and a date range',
+        img: 'help-shots/lesson-fill.webp', imgCap: 'AI Lesson Fill — pick a class and a date range',
         lead: 'Lesson Fill writes draft lessons across as many days as you choose, so you start from a full week instead of a blank page.',
         steps: [
             'On the <strong>AI</strong> tab, open <strong>✨ AI Lesson Fill</strong>.',
@@ -20218,7 +20342,7 @@ const HELP_SECTIONS = [
     {
         id: 'curriculum', icon: '📚', title: 'Curriculum Library',
         sub: 'Feed the AI your real materials',
-        img: 'help-shots/curriculum.jpg', imgCap: 'Uploading a resource to the Curriculum Library',
+        img: 'help-shots/curriculum.webp', imgCap: 'Uploading a resource to the Curriculum Library',
         lead: 'Upload your worksheets, teacher guides, word lists, and reading passages once. Plany’s AI then draws on them to build lessons and student packets that match what you actually teach.',
         steps: [
             'On the <strong>AI</strong> tab, open <strong>📚 Curriculum Library</strong>.',
@@ -20232,7 +20356,7 @@ const HELP_SECTIONS = [
     {
         id: 'ai-tools', icon: '🤖', title: 'More AI Tools',
         sub: 'Scan & Import · Quizzes · Newsletters',
-        img: 'help-shots/ai-tools.jpg', imgCap: 'The AI Tools section on the AI tab',
+        img: 'help-shots/ai-tools.webp', imgCap: 'The AI Tools section on the AI tab',
         lead: 'Beyond Lesson Fill, Plany has a handful of AI helpers for the jobs that eat your time.',
         steps: [
             '<strong>📷 Scan &amp; Import</strong> — snap a photo of a schedule, lesson plan, or district calendar and Plany turns it into real classes and events.',
@@ -20345,6 +20469,7 @@ function openHelp() {
         panel?.classList.add('open');
     });
     panel?.setAttribute('aria-hidden', 'false');
+    if (panel) panel.inert = false;
     setTimeout(() => document.getElementById('help-search')?.focus(), 320);
 }
 
@@ -20354,6 +20479,7 @@ function closeHelp() {
     panel?.classList.remove('open');
     overlay?.classList.remove('show');
     panel?.setAttribute('aria-hidden', 'true');
+    if (panel) panel.inert = true;   // v6.5.0: hidden panel's links can't be tabbed to
     setTimeout(() => overlay?.classList.add('hidden'), 320);
 }
 

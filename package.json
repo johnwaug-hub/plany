@@ -17,7 +17,8 @@
     "deploy:functions": "cd functions && npm install && cd .. && firebase deploy --only functions --project plany-waugs --force",
     "deploy:hosting": "npm test && firebase deploy --only hosting --project plany-waugs",
     "deploy": "npm test && npm run deploy:rules && npm run deploy:functions && npm run deploy:hosting",
-    "test": "node --test tests/logic.test.js"
+    "test": "node --test tests/logic.test.js",
+    "deploy:preview": "npm test && firebase hosting:channel:deploy preview --expires 7d --project plany-waugs"
   },
   "dependencies": {
     "@capacitor/android": "^6.0.0",

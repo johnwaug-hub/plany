@@ -2,6 +2,51 @@
 
 A modern lesson planning app for teachers with an 80's inspired design.
 
+## What's New in v6.5.0 - Audit Clean-Up 🧹
+
+The rest of the v6.0.1 audit's code items.
+
+**Security & libraries**
+- **PDF.js 4.10.38** (legacy build for older classroom devices) replaces 3.11.174, served from plany.work
+  (`public/vendor/pdfjs/`) so its worker runs same-origin.
+- **Content-Security-Policy**: scripts only from plany.work and the CDNs Plany uses; no plug-ins; no framing.
+- `npm run deploy:preview` publishes to a 7-day preview URL for testing before going live.
+
+**Data safety**
+- School-year loads run one at a time, in order, and are dropped if the account changed -- a slow earlier load
+  can no longer overwrite newer data. Classes, lessons, events and breaks load in parallel (faster).
+- Redo after deleting a lesson removes exactly the restored lesson (it matched by title + date).
+- Saving a lesson missing from the local list no longer writes `lessons[-1]`.
+- A partly failed bulk curriculum delete removes what did delete from the list and says how many failed.
+
+**Correctness**
+- Pacing cells like "Day 2 & 3" merge both lessons into that day's lesson instead of dropping the second.
+- The year newsletter includes every key date (was 20), uses `isNoSchoolEvent()`, can't crash on an event with
+  no date, and samples every pacing document per subject.
+- While a principal previews a teacher, the N/E/C and undo/redo shortcuts are off (they wrote to the
+  principal's own account).
+- ✕ on a shared resource removes it from the inbox. Toasts each get their full time on screen.
+- PDFs are released from memory after use; switching resources in the page picker stops the old render.
+- Classes with several sessions show every session's lesson in Week/Day PDFs and summaries.
+
+**Printing**
+- Newsletter, attendance and seating printouts no longer add their own side margins or a fixed width on top of
+  the print shell; weekly/monthly newsletters use 0.4in (year newsletter 0.5in).
+
+**Phone apps**
+- Signed-out launches dismiss the splash screen right away.
+- Android Back steps out one layer at a time (dialog, popup, More menu, Help, then Month) and only exits from
+  Month.
+
+**Accessibility & design**
+- Form fields get names: loose labels are connected to their field, and unlabeled fields use their placeholder,
+  tooltip or neighbouring text. The hidden Help panel can no longer be tabbed into.
+- 89 colour literals in styles.css now use the design tokens (identical values); the light Material colours in
+  the sub-day buttons and the import badges use dark-theme tokens.
+- Help screenshots are WebP (518 KB → 218 KB).
+
+**Deploy:** `npm run deploy` (hosting headers changed).
+
 ## What's New in v6.4.0 - Principal Feedback, Phone Nav, Real Dialogs 💬
 
 - **Principal feedback inbox.** Comments your principal leaves on your lessons now reach you: a 💬 button in

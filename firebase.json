@@ -30,7 +30,7 @@
           },
           {
             "key": "Content-Security-Policy",
-            "value": "frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
+            "value": "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.sheetjs.com https://www.gstatic.com https://accounts.google.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https: wss:; frame-src 'self' https://plany-waugs.firebaseapp.com https://accounts.google.com https://*.google.com; worker-src 'self' blob:; media-src 'self' blob: data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
           },
           {
             "key": "Referrer-Policy",
@@ -93,6 +93,24 @@
           {
             "key": "Cache-Control",
             "value": "no-cache"
+          }
+        ]
+      },
+      {
+        "source": "**/*.mjs",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "text/javascript; charset=utf-8"
+          }
+        ]
+      },
+      {
+        "source": "/vendor/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=604800"
           }
         ]
       }

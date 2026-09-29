@@ -34,17 +34,25 @@
 
   // ── Android Back Button ───────────────────────────────────────────────────
   // Close open modals instead of exiting the app
-  App?.addListener('backButton', ({ canGoBack }) => {
-    const openModal = document.querySelector('.modal:not(.hidden)');
-    if (openModal) {
-      // Close the topmost modal
-      if (typeof closeModal === 'function') closeModal(openModal);
+  // v6.5.0: Back steps out one layer at a time -- confirm box, top popup,
+  // More menu, Help panel, then back to the Month view -- and only exits
+  // from Month. (It used to exit the app from any screen.)
+  App?.addListener('backButton', () => {
+    const dialog = document.querySelector('.plany-dialog');
+    if (dialog) { dialog.querySelector('.plany-dialog-cancel, .plany-dialog-ok')?.click(); return; }
+    const top = (typeof topOpenModal === 'function') ? topOpenModal() : document.querySelector('.modal:not(.hidden)');
+    if (top) {
+      if (typeof dismissModal === 'function') dismissModal(top);
+      else if (typeof closeModal === 'function') closeModal(top);
       return;
     }
-    // No modal open — let the OS decide (exit if at root)
-    if (!canGoBack) {
-      App.exitApp();
-    }
+    const more = document.querySelector('.nav-more-menu:not(.hidden)');
+    if (more) { more.classList.add('hidden'); return; }
+    const help = document.getElementById('help-panel');
+    if (help && help.classList.contains('open')) { if (typeof closeHelp === 'function') closeHelp(); return; }
+    const active = document.querySelector('.view.active')?.id;
+    if (active && active !== 'calendar-view') { document.querySelector('.nav-item[data-view="calendar"]')?.click(); return; }
+    App.exitApp();
   });
 
   // ── Keyboard Avoidance ────────────────────────────────────────────────────
