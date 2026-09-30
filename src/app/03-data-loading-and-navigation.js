@@ -332,6 +332,7 @@ elements.navItems.forEach(item => {
             if (typeof updateExcelOnlyClassDropdown === 'function') {
                 updateExcelOnlyClassDropdown();
             }
+            renderSettingsShareLinks();
         }
     });
 });

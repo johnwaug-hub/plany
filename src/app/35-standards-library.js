@@ -31,6 +31,9 @@ function stdPrefs() {
 }
 function saveStdPrefs(prefs) {
     settings.standardsPrefs = { ...stdPrefs(), ...prefs };
+    // While a principal previews a teacher, `settings` is a temporary copy --
+    // keep the principal's own saved copy in step (v6.9.0).
+    if (typeof _savedSettings !== 'undefined' && _savedSettings) _savedSettings.standardsPrefs = settings.standardsPrefs;
     if (currentUser) db.collection('users').doc(currentUser.uid).collection('settings').doc('schoolYear')
         .set({ standardsPrefs: settings.standardsPrefs }, { merge: true }).catch(() => {});
 }
@@ -110,9 +113,9 @@ async function openStdPicker(pickerId) {
             let html = '', lastDom = -1;
             shown.forEach(([code, desc, dom]) => {
                 if (dom !== lastDom) { lastDom = dom; if (set.domains[dom]) html += `<div class="std-domain-label">${escHtml(set.domains[dom])}</div>`; }
-                const insert = code || desc.slice(0, 80);
-                html += `<button type="button" class="std-chip" data-insert="${escHtml(insert)}">`
-                    + (code ? `<span class="std-chip-code">${escHtml(code)}</span>` : '')
+                const insert = stdShortCode(code) || desc.slice(0, 80);
+                html += `<button type="button" class="std-chip" data-insert="${escHtml(insert)}" title="${escHtml(code)}">`
+                    + (code ? `<span class="std-chip-code">${escHtml(stdShortCode(code))}</span>` : '')
                     + `<span class="std-chip-desc">${escHtml(desc)}</span></button>`;
             });
             if (rows.length > shown.length) html += `<p class="std-empty">Showing 400 of ${rows.length}. Search to narrow it down.</p>`;
@@ -143,10 +146,18 @@ function appendUnitStandard(code) { appendStandardTo('unit-standards', code); }
 // field -- no re-tagging needed. A code counts when it appears as a whole
 // token (so "1.OA.A.1" doesn't also count "1.OA.A.10"; "1.OA.A.1.a" does).
 let _coverage = null;
+// Common Core codes are stored long ("CCSS.Math.Content.1.OA.A.1",
+// "CCSS.ELA-Literacy.RL.1.1") but teachers write them short ("1.OA.A.1",
+// "RL.1.1"). v6.9.0: either form counts, and the picker inserts the short one.
+function stdShortCode(code) {
+    return String(code || '').replace(/^CCSS\.(Math|ELA-Literacy)\.(Content\.|Practice\.)?/i, '');
+}
 function codeRegex(code) {
-    const esc = code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const esc = c => c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const short = stdShortCode(code);
+    const alts = short && short !== code ? esc(code) + '|' + esc(short) : esc(code);
     // A sub-standard (1.OA.A.1.a) counts toward its parent; 1.OA.A.10 doesn't count for 1.OA.A.1
-    return new RegExp('(^|[^A-Za-z0-9.])' + esc + '(?![A-Za-z0-9])', 'i');
+    return new RegExp('(^|[^A-Za-z0-9.])(?:' + alts + ')(?![A-Za-z0-9])', 'i');
 }
 function computeCoverage(set, lessonList) {
     const texts = lessonList.map(l => ({ l, t: `${l.standards || ''}\n${l.objectives || ''}` })).filter(x => x.t.trim());
@@ -199,9 +210,9 @@ function renderCoverage() {
         const state = r.count >= 2 ? 'rep' : r.count === 1 ? 'once' : 'none';
         html += `<div class="cov-row cov-${state}">
             <span class="cov-badge">${r.count ? r.count + '×' : 'Not yet'}</span>
-            <span class="cov-code">${escHtml(r.code)}</span>
+            <span class="cov-code" title="${escHtml(r.code)}">${escHtml(stdShortCode(r.code))}</span>
             <span class="cov-desc">${escHtml(r.desc)}</span>
-            ${r.count ? '' : `<button type="button" class="btn btn-ghost btn-sm cov-plan" data-code="${escHtml(r.code)}">+ Plan</button>`}
+            ${r.count ? '' : `<button type="button" class="btn btn-ghost btn-sm cov-plan" data-code="${escHtml(stdShortCode(r.code))}">+ Plan</button>`}
         </div>`;
     });
     list.innerHTML = html || '<p class="std-empty">This set has no coded standards to track.</p>';
@@ -220,7 +231,7 @@ function printCoverageReport() {
     const clsName = classes.find(c => c.id === document.getElementById('coverage-class')?.value)?.name || 'All classes';
     const from = document.getElementById('coverage-from')?.value, to = document.getElementById('coverage-to')?.value;
     const taught = rows.filter(r => r.count).length;
-    const body = rows.map(r => `<tr><td>${escHtml(r.code)}</td><td>${escHtml(r.desc)}</td><td style="text-align:center">${r.count || '—'}</td></tr>`).join('');
+    const body = rows.map(r => `<tr><td>${escHtml(stdShortCode(r.code))}</td><td>${escHtml(r.desc)}</td><td style="text-align:center">${r.count || '—'}</td></tr>`).join('');
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Standards coverage</title><style>
         body{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#222;margin:0}
         h1{font-size:18px;margin:0 0 4px} .meta{color:#555;margin-bottom:12px}

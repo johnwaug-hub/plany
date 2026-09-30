@@ -9705,18 +9705,18 @@ a:focus-visible,
 /* v6.7.0 -- body padding for the v6.4-6.7 modals (their content isn't
    wrapped in a padded form like the older ones) */
 #coverage-modal .modal-content > :not(.modal-header),
-#share-modal .modal-content > :not(.modal-header),
+#share-link-modal .modal-content > :not(.modal-header),
 #shift-modal .modal-content > :not(.modal-header),
 #feedback-modal .modal-content > :not(.modal-header) {
     margin-left: 1.5rem;
     margin-right: 1.5rem;
 }
 #coverage-modal .modal-content > .modal-header + *,
-#share-modal .modal-content > .modal-header + *,
+#share-link-modal .modal-content > .modal-header + *,
 #shift-modal .modal-content > .modal-header + *,
 #feedback-modal .modal-content > .modal-header + * { margin-top: 1rem; }
 #coverage-modal .modal-content > :last-child,
-#share-modal .modal-content > :last-child,
+#share-link-modal .modal-content > :last-child,
 #shift-modal .modal-content > :last-child,
 #feedback-modal .modal-content > :last-child { margin-bottom: 1.25rem; }
 .std-controls .form-control,
@@ -9725,4 +9725,33 @@ a:focus-visible,
     height: auto;
     padding: 8px 12px;
     line-height: 1.3;
+}
+
+
+/* v6.9.0 -- share link QR code, share links in Settings, principal standards tab */
+.share-qr-row { display: flex; gap: 16px; align-items: center; margin-top: 14px; }
+.share-qr { width: 132px; height: 132px; flex: 0 0 132px; background: #fff; border-radius: 8px; padding: 4px; }
+.share-qr svg { width: 100%; height: 100%; display: block; }
+.share-qr-help p { font-size: 13px; color: var(--text-secondary); margin: 0 0 8px; }
+.share-manage-note { font-size: 12px; color: var(--text-muted); margin-top: 10px; }
+.settings-help { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem; }
+.share-links-table { display: flex; flex-direction: column; gap: 6px; }
+.sl-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: var(--radius-sm, 10px); background: rgba(255,255,255,0.04); }
+.sl-title { font-size: 0.9rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sl-meta { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+.sl-status { font-weight: 700; }
+.sl-active .sl-status { color: var(--success-color); }
+.sl-expired .sl-status, .sl-off .sl-status { color: var(--text-muted); }
+.sl-expired .sl-title, .sl-off .sl-title { opacity: 0.65; }
+.sl-actions { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.pstd-classes { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; margin: 4px 0 14px; }
+.pstd-class { padding: 8px 10px; border-radius: var(--radius-sm, 10px); background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); font-size: 13px; }
+.pstd-class b { font-variant-numeric: tabular-nums; }
+.pstd-bar { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.08); margin-top: 6px; overflow: hidden; }
+.pstd-bar > i { display: block; height: 100%; background: var(--success-color); }
+#principal-tab-content .coverage-list { max-height: none; }
+@media (max-width: 600px) {
+    .share-qr-row { flex-direction: column; align-items: flex-start; }
+    .sl-row { grid-template-columns: 1fr; }
+    .sl-actions { justify-content: flex-start; }
 }

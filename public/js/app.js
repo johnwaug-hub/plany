@@ -1,4 +1,4 @@
-// PLANY - Main Application v6.8.0
+// PLANY - Main Application v6.9.0
 // GENERATED FILE -- edit the feature files in src/app/ and run `npm run build`.
 // (public/js/app.js is those files joined in order; `npm test` fails if it is stale.)
 // ==================================================
@@ -1882,6 +1882,7 @@ elements.navItems.forEach(item => {
             if (typeof updateExcelOnlyClassDropdown === 'function') {
                 updateExcelOnlyClassDropdown();
             }
+            renderSettingsShareLinks();
         }
     });
 });
@@ -4936,7 +4937,9 @@ const LIBS = {
              after: () => { pdfjsLib.GlobalWorkerOptions.workerSrc = '/vendor/pdfjs/pdf.worker.min.mjs'; } },
     jspdf: { src: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', ready: () => !!window.jspdf },
     xlsx:  { src: 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js', ready: () => typeof XLSX !== 'undefined' },
-    jszip: { src: 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js', ready: () => typeof JSZip !== 'undefined' }
+    jszip: { src: 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js', ready: () => typeof JSZip !== 'undefined' },
+    // v6.9.0: QR codes for share links (qrcode-generator 1.4.4, MIT), served from plany.work
+    qrcode: { src: '/vendor/qrcode/qrcode.min.js', ready: () => typeof qrcode !== 'undefined' }
 };
 const _libPromises = {};
 function ensureLib(name) {
@@ -14999,6 +15002,9 @@ function stdPrefs() {
 }
 function saveStdPrefs(prefs) {
     settings.standardsPrefs = { ...stdPrefs(), ...prefs };
+    // While a principal previews a teacher, `settings` is a temporary copy --
+    // keep the principal's own saved copy in step (v6.9.0).
+    if (typeof _savedSettings !== 'undefined' && _savedSettings) _savedSettings.standardsPrefs = settings.standardsPrefs;
     if (currentUser) db.collection('users').doc(currentUser.uid).collection('settings').doc('schoolYear')
         .set({ standardsPrefs: settings.standardsPrefs }, { merge: true }).catch(() => {});
 }
@@ -15078,9 +15084,9 @@ async function openStdPicker(pickerId) {
             let html = '', lastDom = -1;
             shown.forEach(([code, desc, dom]) => {
                 if (dom !== lastDom) { lastDom = dom; if (set.domains[dom]) html += `<div class="std-domain-label">${escHtml(set.domains[dom])}</div>`; }
-                const insert = code || desc.slice(0, 80);
-                html += `<button type="button" class="std-chip" data-insert="${escHtml(insert)}">`
-                    + (code ? `<span class="std-chip-code">${escHtml(code)}</span>` : '')
+                const insert = stdShortCode(code) || desc.slice(0, 80);
+                html += `<button type="button" class="std-chip" data-insert="${escHtml(insert)}" title="${escHtml(code)}">`
+                    + (code ? `<span class="std-chip-code">${escHtml(stdShortCode(code))}</span>` : '')
                     + `<span class="std-chip-desc">${escHtml(desc)}</span></button>`;
             });
             if (rows.length > shown.length) html += `<p class="std-empty">Showing 400 of ${rows.length}. Search to narrow it down.</p>`;
@@ -15111,10 +15117,18 @@ function appendUnitStandard(code) { appendStandardTo('unit-standards', code); }
 // field -- no re-tagging needed. A code counts when it appears as a whole
 // token (so "1.OA.A.1" doesn't also count "1.OA.A.10"; "1.OA.A.1.a" does).
 let _coverage = null;
+// Common Core codes are stored long ("CCSS.Math.Content.1.OA.A.1",
+// "CCSS.ELA-Literacy.RL.1.1") but teachers write them short ("1.OA.A.1",
+// "RL.1.1"). v6.9.0: either form counts, and the picker inserts the short one.
+function stdShortCode(code) {
+    return String(code || '').replace(/^CCSS\.(Math|ELA-Literacy)\.(Content\.|Practice\.)?/i, '');
+}
 function codeRegex(code) {
-    const esc = code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const esc = c => c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const short = stdShortCode(code);
+    const alts = short && short !== code ? esc(code) + '|' + esc(short) : esc(code);
     // A sub-standard (1.OA.A.1.a) counts toward its parent; 1.OA.A.10 doesn't count for 1.OA.A.1
-    return new RegExp('(^|[^A-Za-z0-9.])' + esc + '(?![A-Za-z0-9])', 'i');
+    return new RegExp('(^|[^A-Za-z0-9.])(?:' + alts + ')(?![A-Za-z0-9])', 'i');
 }
 function computeCoverage(set, lessonList) {
     const texts = lessonList.map(l => ({ l, t: `${l.standards || ''}\n${l.objectives || ''}` })).filter(x => x.t.trim());
@@ -15167,9 +15181,9 @@ function renderCoverage() {
         const state = r.count >= 2 ? 'rep' : r.count === 1 ? 'once' : 'none';
         html += `<div class="cov-row cov-${state}">
             <span class="cov-badge">${r.count ? r.count + '×' : 'Not yet'}</span>
-            <span class="cov-code">${escHtml(r.code)}</span>
+            <span class="cov-code" title="${escHtml(r.code)}">${escHtml(stdShortCode(r.code))}</span>
             <span class="cov-desc">${escHtml(r.desc)}</span>
-            ${r.count ? '' : `<button type="button" class="btn btn-ghost btn-sm cov-plan" data-code="${escHtml(r.code)}">+ Plan</button>`}
+            ${r.count ? '' : `<button type="button" class="btn btn-ghost btn-sm cov-plan" data-code="${escHtml(stdShortCode(r.code))}">+ Plan</button>`}
         </div>`;
     });
     list.innerHTML = html || '<p class="std-empty">This set has no coded standards to track.</p>';
@@ -15188,7 +15202,7 @@ function printCoverageReport() {
     const clsName = classes.find(c => c.id === document.getElementById('coverage-class')?.value)?.name || 'All classes';
     const from = document.getElementById('coverage-from')?.value, to = document.getElementById('coverage-to')?.value;
     const taught = rows.filter(r => r.count).length;
-    const body = rows.map(r => `<tr><td>${escHtml(r.code)}</td><td>${escHtml(r.desc)}</td><td style="text-align:center">${r.count || '—'}</td></tr>`).join('');
+    const body = rows.map(r => `<tr><td>${escHtml(stdShortCode(r.code))}</td><td>${escHtml(r.desc)}</td><td style="text-align:center">${r.count || '—'}</td></tr>`).join('');
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Standards coverage</title><style>
         body{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#222;margin:0}
         h1{font-size:18px;margin:0 0 4px} .meta{color:#555;margin-bottom:12px}
@@ -19953,6 +19967,9 @@ function renderPrincipalTab(tab) {
     } else if (tab === 'classes') {
         renderClasses();
         sourceEl = document.getElementById('classes-list');
+    } else if (tab === 'standards') {
+        renderPrincipalStandards(container, readonlyNote);
+        return;
     }
 
     // Date navigation controls for the time-based tabs (year & classes have none)
@@ -20124,10 +20141,106 @@ function printCurrentPrincipalView() {
     if (_previewTab === 'week') { printWeekPDF?.(); return; }
     if (_previewTab === 'day')  { printDayPDF?.(formatDate(currentDayDate)); return; }
     if (_previewTab === 'year') { printYearPDF?.(); return; }
+    if (_previewTab === 'standards') { printPrincipalStandards(); return; }
     // Default: print what's in the tab content
     const html = document.getElementById('principal-tab-content')?.innerHTML || '';
     const win = openPrintWindow();
     win.document.write(preparePrintDoc('<html><head><title>Plany – ' + (_previewTeacher?.name||'Teacher') + '</title><style>body{font-family:sans-serif;padding:0;margin:0;} @media print{body{print-color-adjust:exact;}}</style></head><body>' + html + '</body></html>', {v:'0.4in',h:'0.3in'}));
+    win.document.close();
+    win.onload = () => setTimeout(() => { win.focus(); win.print(); }, 300);
+}
+
+// ── Principal: standards coverage for a teacher (v6.9.0) ──────────────
+// Same counting as the teacher's 📊 Standards coverage (computeCoverage),
+// over the previewed teacher's lessons. Read-only; the principal's
+// state/grade/subject choice is saved to the principal's own account.
+let _pStd = null;
+
+function principalStdLessons() {
+    const cls = document.getElementById('pstd-class')?.value || '';
+    const range = document.getElementById('pstd-range')?.value || 'sofar';
+    const today = formatDate(new Date());
+    return lessons.filter(l => (!cls || l.classId === cls) && (range === 'year' || l.date <= today));
+}
+
+async function renderPrincipalStandards(container, note) {
+    const name = _previewTeacher?.name || 'this teacher';
+    container.innerHTML = note + `
+        <div class="coverage-controls">
+            <div id="pstd-picker" class="std-controls"></div>
+            <div class="std-controls">
+                <select id="pstd-class" class="form-control" aria-label="Class">
+                    <option value="">All classes</option>
+                    ${classes.map(c => `<option value="${escHtml(c.id)}">${escHtml(c.name)}</option>`).join('')}
+                </select>
+                <select id="pstd-range" class="form-control" aria-label="Range">
+                    <option value="sofar">Taught so far (through today)</option>
+                    <option value="year">Whole year, including planned</option>
+                </select>
+            </div>
+        </div>
+        <div id="pstd-summary" class="coverage-summary" aria-live="polite"></div>
+        <div id="pstd-classes" class="pstd-classes"></div>
+        <div id="pstd-list" class="coverage-list"></div>
+        <p class="std-credit">Counted from the standard codes in ${escHtml(name)}'s lessons. Standards: Common Standards Project, CC BY 3.0 US. Common Core © NGA Center/CCSSO 2010. NGSS is a registered trademark of WestEd; not affiliated with or endorsing this product.</p>`;
+    ['pstd-class', 'pstd-range'].forEach(id => document.getElementById(id)?.addEventListener('change', drawPrincipalStandards));
+    await buildStdControls(document.getElementById('pstd-picker'), { withSearch: false, onChange: (sel) => { _pStd = sel; drawPrincipalStandards(); } });
+}
+
+function drawPrincipalStandards() {
+    const sum = document.getElementById('pstd-summary'), list = document.getElementById('pstd-list'),
+          byCls = document.getElementById('pstd-classes');
+    if (!sum || !list) return;
+    if (!_pStd || !_pStd.set) { sum.textContent = 'Pick a state, grade and subject.'; list.innerHTML = ''; byCls.innerHTML = ''; return; }
+    const rows = computeCoverage(_pStd.set, principalStdLessons());
+    const taught = rows.filter(r => r.count >= 1).length, repeated = rows.filter(r => r.count >= 2).length;
+    sum.innerHTML = `<div class="cov-stat"><b>${taught}</b><span>of ${rows.length} taught</span></div>
+        <div class="cov-stat"><b>${repeated}</b><span>taught 2+ times</span></div>
+        <div class="cov-stat"><b>${rows.length - taught}</b><span>not yet</span></div>`;
+    // Per class, only when looking at all classes
+    const range = document.getElementById('pstd-range')?.value || 'sofar';
+    const today = formatDate(new Date());
+    if (!document.getElementById('pstd-class')?.value && rows.length) {
+        byCls.innerHTML = classes.map(c => {
+            const ls = lessons.filter(l => l.classId === c.id && (range === 'year' || l.date <= today));
+            const n = computeCoverage(_pStd.set, ls).filter(r => r.count).length;
+            if (!n) return '';
+            const pct = Math.round(100 * n / rows.length);
+            return `<div class="pstd-class">${escHtml(c.name)}: <b>${n}</b> of ${rows.length}<div class="pstd-bar"><i style="width:${pct}%"></i></div></div>`;
+        }).join('');
+    } else byCls.innerHTML = '';
+    let html = '', lastDom = null;
+    rows.forEach(r => {
+        if (r.domain !== lastDom) { lastDom = r.domain; html += `<div class="std-domain-label">${escHtml(r.domain)}</div>`; }
+        const state = r.count >= 2 ? 'rep' : r.count === 1 ? 'once' : 'none';
+        html += `<div class="cov-row cov-${state}">
+            <span class="cov-badge">${r.count ? r.count + '×' : 'Not yet'}</span>
+            <span class="cov-code" title="${escHtml(r.code)}">${escHtml(stdShortCode(r.code))}</span>
+            <span class="cov-desc">${escHtml(r.desc)}</span>
+        </div>`;
+    });
+    list.innerHTML = html || '<p class="std-empty">This set has no coded standards to track.</p>';
+}
+
+function printPrincipalStandards() {
+    if (!_pStd || !_pStd.set) { showToast('Pick a state, grade and subject first.'); return; }
+    const rows = computeCoverage(_pStd.set, principalStdLessons());
+    const clsName = classes.find(c => c.id === document.getElementById('pstd-class')?.value)?.name || 'All classes';
+    const rangeLabel = document.getElementById('pstd-range')?.value === 'year' ? 'whole year incl. planned' : 'through ' + formatDisplayDate(new Date());
+    const taught = rows.filter(r => r.count).length;
+    const body = rows.map(r => `<tr><td>${escHtml(stdShortCode(r.code))}</td><td>${escHtml(r.desc)}</td><td style="text-align:center">${r.count || '—'}</td></tr>`).join('');
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Standards coverage</title><style>
+        body{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#222;margin:0}
+        h1{font-size:18px;margin:0 0 4px} .meta{color:#555;margin-bottom:12px}
+        table{width:100%;border-collapse:collapse} th,td{border:1px solid #ccc;padding:4px 6px;vertical-align:top}
+        th{background:#f0f0f0;text-align:left} td:first-child{white-space:nowrap;font-weight:600}
+        </style></head><body>
+        <h1>${escHtml(_previewTeacher?.name || '')} — ${escHtml(_pStd.set.subject)}, ${_pStd.grade === 'K' ? 'Kindergarten' : 'Grade ' + escHtml(_pStd.grade)}</h1>
+        <div class="meta">${escHtml(_pStd.file?.name || '')} · ${escHtml(clsName)} · ${escHtml(rangeLabel)} · ${taught} of ${rows.length} taught</div>
+        <table><thead><tr><th>Code</th><th>Standard</th><th>Lessons</th></tr></thead><tbody>${body}</tbody></table>
+        </body></html>`;
+    const win = openPrintWindow();
+    win.document.write(preparePrintDoc(html, { v: '0.4in', h: '0.3in' }));
     win.document.close();
     win.onload = () => setTimeout(() => { win.focus(); win.print(); }, 300);
 }
@@ -20298,7 +20411,7 @@ function buildWeekShare() {
             })
         };
     }).filter(day => !(day.classes.length === 0 && !day.off && day.events.length === 0 && /^(Sat|Sun)/.test(day.label)));
-    const label = document.getElementById('current-week')?.textContent || formatDate(currentWeekStart);
+    const label = (document.getElementById('current-week')?.textContent || formatDate(currentWeekStart)).replace(/^\s*Week of\s*/i, '');
     return { kind: 'week', title: `Week of ${label}`, snapshot: { days } };
 }
 
@@ -20321,7 +20434,9 @@ async function createShareLink(kind) {
         const url = `https://plany.work/s/${token}`;
         const input = document.getElementById('share-link-url');
         if (input) input.value = url;
-        document.getElementById('share-modal')?.classList.remove('hidden');
+        _shareCurrent = { url, title: base.title };
+        document.getElementById('share-link-modal')?.classList.remove('hidden');
+        showShareQr(url);
         refreshShareLinks();
         try { await navigator.clipboard.writeText(url); showToast('🔗 Link copied'); } catch (_) {}
     } catch (e) {
@@ -20337,17 +20452,47 @@ function copyShareLink() {
         .catch(() => { input.select(); showToast('Press Ctrl+C to copy'); });
 }
 
+// The owner's links, newest first, with a status of active / expired / off.
+async function fetchMyShareLinks() {
+    if (!currentUser) return [];
+    const snap = await db.collection('publicShares').where('ownerUid', '==', currentUser.uid).get();
+    const now = Date.now();
+    return snap.docs.map(d => {
+        const x = { id: d.id, ...d.data() };
+        const exp = x.expiresAt?.toMillis?.() || 0;
+        x.status = x.revoked ? 'off' : exp > now ? 'active' : 'expired';
+        x.url = `https://plany.work/s/${d.id}`;
+        return x;
+    }).sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+}
+
+function shareShortDate(ts) {
+    const d = ts?.toDate?.();
+    return d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+}
+
+async function turnOffShareLink(id) {
+    if (!await planyConfirm('Turn off this link? Anyone who has it will no longer be able to open it.', { okText: 'Turn off', danger: true })) return false;
+    try { await db.collection('publicShares').doc(id).update({ revoked: true }); showToast('Link turned off'); return true; }
+    catch (e) { showToast('Could not turn it off: ' + e.message); return false; }
+}
+
+async function deleteShareLink(id, active) {
+    const msg = active ? 'Delete this link? It stops working right away and is removed from your list.'
+                       : 'Remove this link from your list?';
+    if (!await planyConfirm(msg, { okText: 'Delete', danger: true })) return false;
+    try { await db.collection('publicShares').doc(id).delete(); showToast('Link deleted'); return true; }
+    catch (e) { showToast('Could not delete it: ' + e.message); return false; }
+}
+
+// Active links, inside the share window
 async function refreshShareLinks() {
     const box = document.getElementById('share-links-list');
     if (!box || !currentUser) return;
     try {
-        const snap = await db.collection('publicShares').where('ownerUid', '==', currentUser.uid).get();
-        const now = Date.now();
-        const items = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-            .filter(x => !x.revoked && x.expiresAt?.toMillis?.() > now)
-            .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+        const items = (await fetchMyShareLinks()).filter(x => x.status === 'active');
         box.innerHTML = items.length ? items.map(x => `<div class="ai-history-row">
-                <button type="button" class="ai-history-open" data-url="https://plany.work/s/${escHtml(x.id)}">
+                <button type="button" class="ai-history-open" data-url="${escHtml(x.url)}" data-title="${escHtml(x.title || '')}">
                     <span>${x.kind === 'lesson' ? '📄' : '🗓️'} ${escHtml(x.title || 'Shared plan')}</span>
                     <span class="ai-history-date">until ${escHtml(x.expiresAt.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))}</span>
                 </button>
@@ -20355,13 +20500,95 @@ async function refreshShareLinks() {
             </div>`).join('') : '<p class="muted" style="font-size:14px;">No active links.</p>';
         box.querySelectorAll('.ai-history-open').forEach(b => b.addEventListener('click', () => {
             const input = document.getElementById('share-link-url'); if (input) input.value = b.dataset.url;
+            _shareCurrent = { url: b.dataset.url, title: b.dataset.title };
+            showShareQr(b.dataset.url);
         }));
         box.querySelectorAll('.share-revoke').forEach(b => b.addEventListener('click', async () => {
-            if (!await planyConfirm('Turn off this link? Anyone who has it will no longer be able to open it.', { okText: 'Turn off', danger: true })) return;
-            try { await db.collection('publicShares').doc(b.dataset.id).update({ revoked: true }); showToast('Link turned off'); refreshShareLinks(); }
-            catch (e) { showToast('Could not turn it off: ' + e.message); }
+            if (await turnOffShareLink(b.dataset.id)) { refreshShareLinks(); renderSettingsShareLinks(); }
         }));
     } catch (e) { console.warn('refreshShareLinks:', e.message); }
+}
+
+// Every link (active, expired, turned off), in Settings -> Share links (v6.9.0)
+async function renderSettingsShareLinks() {
+    const box = document.getElementById('settings-share-links');
+    if (!box || !currentUser) return;
+    box.innerHTML = '<p class="std-empty">Loading…</p>';
+    let items;
+    try { items = await fetchMyShareLinks(); }
+    catch (e) { box.innerHTML = `<p class="std-empty">Could not load your links (${escHtml(e.message)}).</p>`; return; }
+    if (!items.length) {
+        box.innerHTML = '<p class="std-empty">No share links yet. Make one from Week view → 🔗 Share, or 🔗 in a saved lesson.</p>';
+        return;
+    }
+    const label = { active: 'Active', expired: 'Expired', off: 'Turned off' };
+    box.innerHTML = items.map(x => `<div class="sl-row sl-${x.status}">
+            <div style="min-width:0;">
+                <div class="sl-title">${x.kind === 'lesson' ? '📄' : '🗓️'} ${escHtml(x.title || 'Shared plan')}</div>
+                <div class="sl-meta"><span class="sl-status">${label[x.status]}</span>
+                    · made ${escHtml(shareShortDate(x.createdAt))}
+                    · ${x.status === 'expired' ? 'ended' : 'until'} ${escHtml(shareShortDate(x.expiresAt))}</div>
+            </div>
+            <div class="sl-actions">
+                ${x.status === 'active' ? `
+                <button type="button" class="btn btn-ghost btn-sm" data-act="copy" data-id="${escHtml(x.id)}">Copy</button>
+                <button type="button" class="btn btn-ghost btn-sm" data-act="qr" data-id="${escHtml(x.id)}">QR</button>
+                <button type="button" class="btn btn-ghost btn-sm" data-act="off" data-id="${escHtml(x.id)}">Turn off</button>` : ''}
+                <button type="button" class="btn btn-ghost btn-sm" data-act="del" data-id="${escHtml(x.id)}" title="Delete">🗑️</button>
+            </div>
+        </div>`).join('');
+    const byId = Object.fromEntries(items.map(x => [x.id, x]));
+    box.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', async () => {
+        const x = byId[b.dataset.id]; if (!x) return;
+        if (b.dataset.act === 'copy') {
+            navigator.clipboard.writeText(x.url).then(() => showToast('🔗 Link copied')).catch(() => showToast(x.url));
+        } else if (b.dataset.act === 'qr') {
+            const input = document.getElementById('share-link-url'); if (input) input.value = x.url;
+            _shareCurrent = { url: x.url, title: x.title };
+            document.getElementById('share-link-modal')?.classList.remove('hidden');
+            showShareQr(x.url); refreshShareLinks();
+        } else if (b.dataset.act === 'off') {
+            if (await turnOffShareLink(x.id)) renderSettingsShareLinks();
+        } else if (b.dataset.act === 'del') {
+            if (await deleteShareLink(x.id, x.status === 'active')) renderSettingsShareLinks();
+        }
+    }));
+}
+
+// ── QR code for a share link (v6.9.0) ─────────────────────────────────
+let _shareCurrent = null;   // { url, title } shown in the share window
+
+function shareQrSvg(url) {
+    const q = qrcode(0, 'M');
+    q.addData(url);
+    q.make();
+    return q.createSvgTag({ cellSize: 4, margin: 2, scalable: true, alt: 'QR code' });
+}
+
+async function showShareQr(url) {
+    const box = document.getElementById('share-link-qr');
+    if (!box) return;
+    box.innerHTML = '';
+    try { await ensureLib('qrcode'); box.innerHTML = shareQrSvg(url); }
+    catch (e) { box.innerHTML = '<p class="std-empty">QR code unavailable offline.</p>'; }
+}
+
+async function printShareQr() {
+    if (!_shareCurrent?.url) return;
+    try { await ensureLib('qrcode'); } catch (e) { showToast(e.message); return; }
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${escHtml(_shareCurrent.title || 'Lesson plans')}</title><style>
+        body{font-family:'Segoe UI',Arial,sans-serif;color:#222;margin:0;text-align:center}
+        h1{font-size:26px;margin:0.6in 0 6px} p{font-size:15px;color:#555;margin:0 0 24px}
+        .qr{width:4in;height:4in;margin:0 auto} .qr svg{width:100%;height:100%}
+        </style></head><body>
+        <h1>${escHtml(_shareCurrent.title || 'Lesson plans')}</h1>
+        <p>Scan with a phone camera to view</p>
+        <div class="qr">${shareQrSvg(_shareCurrent.url)}</div>
+        </body></html>`;
+    const win = openPrintWindow();
+    win.document.write(preparePrintDoc(html, { v: '0.4in', h: '0.3in' }));
+    win.document.close();
+    win.onload = () => setTimeout(() => { win.focus(); win.print(); }, 300);
 }
 
 // ── Shift lessons: push later / pull earlier (v6.6.0) ─────────────────

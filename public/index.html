@@ -1222,6 +1222,18 @@
                         </div>
                     </div>
 
+                    <!-- Share links (v6.9.0) -->
+                    <div class="settings-card full-width" id="settings-share-links-card">
+                        <div class="settings-card-header">
+                            <span class="icon">🔗</span>
+                            <h3>Share links</h3>
+                        </div>
+                        <div class="settings-card-body">
+                            <p class="settings-help">Read-only links you've made from Week view (🔗 Share) or a saved lesson (🔗). Turn one off to stop it working right away; delete removes it from this list.</p>
+                            <div id="settings-share-links" class="share-links-table" aria-live="polite"></div>
+                        </div>
+                    </div>
+
                     <!-- Integrations: single entry point -->
                     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:var(--gradient-card);border-radius:var(--radius-lg);border:1px solid rgba(255,255,255,0.05);margin-bottom:4rem;">
                         <div>
@@ -1280,6 +1292,7 @@
                     <button class="psn-btn"        data-ptab="week"   onclick="switchPrincipalTab('week')">📋 Week</button>
                     <button class="psn-btn"        data-ptab="day"    onclick="switchPrincipalTab('day')">📄 Day</button>
                     <button class="psn-btn"        data-ptab="classes" onclick="switchPrincipalTab('classes')">🎓 Classes</button>
+                    <button class="psn-btn"        data-ptab="standards" onclick="switchPrincipalTab('standards')">📊 Standards</button>
                     <div style="margin-left:auto;display:flex;gap:6px;">
                         <button class="btn btn-ghost btn-sm" onclick="printCurrentPrincipalView()">🖨️ Print</button>
                         <button class="btn btn-secondary btn-sm" onclick="openPrincipalCommentModal()">💬 Comment</button>
@@ -1325,7 +1338,7 @@
                 <span class="nav-label">Staff</span>
                 <span id="principal-badge" class="unread-badge hidden">0</span>
             </button>
-            <span class="nav-version">v6.8.0</span>
+            <span class="nav-version">v6.9.0</span>
         </nav>
 
 
@@ -2309,8 +2322,8 @@
         </div>
     </div>
 
-    <!-- Share links (v6.6.0) -->
-    <div id="share-modal" class="modal hidden">
+    <!-- Share links (v6.6.0; own id since v6.9.0 -- "share-modal" is the friends Share Lesson window) -->
+    <div id="share-link-modal" class="modal hidden">
         <div class="modal-content modal-medium">
             <div class="modal-header">
                 <h2>🔗 Share link</h2>
@@ -2321,8 +2334,16 @@
                 <input type="text" id="share-link-url" class="form-control" readonly aria-label="Share link">
                 <button type="button" class="btn btn-primary" onclick="copyShareLink()">Copy</button>
             </div>
+            <div class="share-qr-row">
+                <div id="share-link-qr" class="share-qr" role="img" aria-label="QR code for this link"></div>
+                <div class="share-qr-help">
+                    <p>Scan with a phone camera to open the link — handy on a sub folder, the door, or a parent-night slide.</p>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="printShareQr()">🖨️ Print QR code</button>
+                </div>
+            </div>
             <div class="ai-history-head" style="margin-top:16px;">Your active links</div>
             <div id="share-links-list" class="ai-history"></div>
+            <p class="share-manage-note">All your links, including expired and turned-off ones, are in Settings → 🔗 Share links.</p>
         </div>
     </div>
 

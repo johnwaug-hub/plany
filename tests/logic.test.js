@@ -41,7 +41,7 @@ vm.runInContext([
     extractConst('SCHOOL_DAY_EVENT_TYPES'),
     extractConst('SCHOOL_ACTIVITY_TITLE_RE'),
     ...['formatDate', 'addDays', 'getWeekStart', 'isNoSchoolEvent', 'countSchoolDaysLeft',
-        'escHtml', 'jsArg', 'safeImgUrl', 'planClassShift', 'codeRegex'].map(extractFunction)
+        'escHtml', 'jsArg', 'safeImgUrl', 'planClassShift', 'stdShortCode', 'codeRegex'].map(extractFunction)
 ].join('\n'), ctx);
 const f = (name) => ctx[name];
 
@@ -167,4 +167,15 @@ test('standards coverage: a code only counts as a whole token', () => {
     assert.equal(re.test('1.OA.A.1.a'), true);   // sub-standard counts toward its parent
     assert.equal(re.test('K.1.OA.A.1'), false);
     assert.equal(f('codeRegex')('CCSS.ELA-Literacy.RL.1.1').test('ccss.ela-literacy.rl.1.1'), true);
+});
+
+test('standards coverage: Common Core long codes also match the short form teachers write', () => {
+    const re = f('codeRegex')('CCSS.Math.Content.1.OA.A.1');
+    assert.equal(re.test('1.OA.A.1'), true);
+    assert.equal(re.test('CCSS.Math.Content.1.OA.A.1'), true);
+    assert.equal(re.test('1.OA.A.10'), false);
+    assert.equal(f('codeRegex')('CCSS.ELA-Literacy.RL.1.1').test('RL.1.1 retell stories'), true);
+    assert.equal(f('codeRegex')('CCSS.ELA-Literacy.RL.1.1').test('RL.1.10'), false);
+    assert.equal(f('stdShortCode')('CCSS.Math.Practice.MP1'), 'MP1');
+    assert.equal(f('stdShortCode')('1.OA.A.1'), '1.OA.A.1');
 });

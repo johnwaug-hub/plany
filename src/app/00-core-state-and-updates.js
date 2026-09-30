@@ -1,4 +1,4 @@
-// PLANY - Main Application v6.8.0
+// PLANY - Main Application v6.9.0
 // GENERATED FILE -- edit the feature files in src/app/ and run `npm run build`.
 // (public/js/app.js is those files joined in order; `npm test` fails if it is stale.)
 // ==================================================

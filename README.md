@@ -1,6 +1,22 @@
-# PLANY v6.8.0 - Lesson Planning PWA
+# PLANY v6.9.0 - Lesson Planning PWA
 
 A modern lesson planning app for teachers with an 80's inspired design.
+
+## What's New in v6.9.0 - QR Codes, Link Manager, Principal Standards 🔳
+
+- **QR code on every share link.** The 🔗 share window shows a QR code for the link; 🖨️ Print QR code prints
+  a full-page code with the plan's title (for a sub folder, the classroom door, a parent-night slide).
+  Library: qrcode-generator 1.4.4 (MIT), served from plany.work and cached for offline use.
+- **Settings → 🔗 Share links** lists every link you've made -- active, expired and turned off -- with
+  Copy, QR, Turn off and Delete.
+- **Principal view → 📊 Standards.** When a principal opens a teacher, the new tab shows how many standards
+  in a chosen state, grade and subject that teacher has taught (so far, or the whole planned year), a
+  per-class bar for each class, and the taught / 2+ / not-yet list. 🖨️ prints it.
+- **Fix:** Common Core coverage counted 0 -- the library stores codes long (`CCSS.Math.Content.1.OA.A.1`) but
+  lessons use the short form (`1.OA.A.1`). Both forms now count, and the picker inserts the short code.
+- **Fix:** week share links were titled "Week of Week of …".
+- **Fix:** making a share link opened the older friends "Share Lesson" window, because both windows had the
+  same id. The link window now has its own (`share-link-modal`).
 
 ## What's New in v6.8.0 - Source Split Into Feature Files 🧩
 

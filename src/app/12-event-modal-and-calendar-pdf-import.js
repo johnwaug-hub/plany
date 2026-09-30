@@ -135,7 +135,9 @@ const LIBS = {
              after: () => { pdfjsLib.GlobalWorkerOptions.workerSrc = '/vendor/pdfjs/pdf.worker.min.mjs'; } },
     jspdf: { src: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', ready: () => !!window.jspdf },
     xlsx:  { src: 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js', ready: () => typeof XLSX !== 'undefined' },
-    jszip: { src: 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js', ready: () => typeof JSZip !== 'undefined' }
+    jszip: { src: 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js', ready: () => typeof JSZip !== 'undefined' },
+    // v6.9.0: QR codes for share links (qrcode-generator 1.4.4, MIT), served from plany.work
+    qrcode: { src: '/vendor/qrcode/qrcode.min.js', ready: () => typeof qrcode !== 'undefined' }
 };
 const _libPromises = {};
 function ensureLib(name) {

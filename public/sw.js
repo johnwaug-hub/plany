@@ -1,5 +1,5 @@
-// PLANY Service Worker - v6.8.0
-const CACHE_NAME = 'plany-v6.8.0';
+// PLANY Service Worker - v6.9.0
+const CACHE_NAME = 'plany-v6.9.0';
 const STATIC_ASSETS = [
     '/',
     '/index.html',
@@ -8,6 +8,7 @@ const STATIC_ASSETS = [
     '/js/capacitor-bridge.js',
     '/js/app.js',
     '/manifest.json',
+    '/vendor/qrcode/qrcode.min.js',
     '/icons/icon-192.svg',
     '/icons/icon-512.svg',
     'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap'
