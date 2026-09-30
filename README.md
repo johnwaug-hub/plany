@@ -1,6 +1,14 @@
-# PLANY v6.9.0 - Lesson Planning PWA
+# PLANY v6.9.1 - Lesson Planning PWA
 
 A modern lesson planning app for teachers with an 80's inspired design.
+
+## What's New in v6.9.1 - Picked Pages Follow You 📄
+
+- **Fix: pages picked for a Sub Day packet now show up on every computer.** Picks were only kept on the
+  screen until the packet's Save button was pressed, so pages picked at home and then printed or closed
+  never reached your account. Now each pick (and each ✕ removal) saves right away. On a day with no saved
+  packet yet, the first pick saves the whole packet, the same as pressing Save.
+- Same for pages picked in 🚨 Emergency sub plans.
 
 ## What's New in v6.9.0 - QR Codes, Link Manager, Principal Standards 🔳
 

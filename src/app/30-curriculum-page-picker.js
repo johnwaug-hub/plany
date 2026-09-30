@@ -64,6 +64,41 @@ function removeSubWork(storeKey, resourceId, scope = 'sub') {
     store[storeKey] = (store[storeKey] || []).filter(s => s.resourceId !== resourceId);
     const host = _ppChipHost(storeKey, scope);
     if (host) host.innerHTML = subWorkChipsHTML(storeKey, scope);
+    persistPickedPages(scope, storeKey);
+}
+
+// v6.9.1: save picked pages right away, so they're on every computer even if
+// the packet's Save button is never pressed.
+//  - Sub Day: an existing packet gets just its workPicks map updated; a day
+//    with no saved packet yet is saved in full (same as pressing Save), so the
+//    rest of the form isn't left half-empty on the other computer.
+//  - Emergency plans: only that period's workPages.
+async function persistPickedPages(scope, storeKey) {
+    if (!currentUser || (typeof _previewTeacher !== 'undefined' && _previewTeacher)) return;
+    try {
+        if (scope === 'emergency') {
+            const dow = storeKey.split('::')[0], slotKey = _ppRawSlot(storeKey, scope);
+            const workPages = JSON.parse(JSON.stringify(emergencyWorkPages[storeKey] || []));
+            await db.collection('users').doc(currentUser.uid).collection('settings').doc('emergencySubPlans')
+                .set({ days: { [dow]: { periods: { [slotKey]: { workPages } } } } }, { merge: true });
+            if (!emergencySubPlans.days) emergencySubPlans.days = {};
+            if (!emergencySubPlans.days[dow]) emergencySubPlans.days[dow] = { periods: {} };
+            if (!emergencySubPlans.days[dow].periods) emergencySubPlans.days[dow].periods = {};
+            emergencySubPlans.days[dow].periods[slotKey] = { ...(emergencySubPlans.days[dow].periods[slotKey] || {}), workPages };
+            return;
+        }
+        const dateStr = document.getElementById('sub-day-modal')?.dataset.date;
+        if (!dateStr) return;
+        if (!subDays[dateStr]) { await saveSubDay({ quiet: true }); return; }
+        const workPicks = JSON.parse(JSON.stringify(subWorkPages || {}));
+        await getYearPath().collection('subDays').doc(dateStr).set({
+            workPicks, updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+        subDays[dateStr] = { ...subDays[dateStr], workPicks };
+    } catch (e) {
+        console.warn('persistPickedPages:', e.message);
+        showToast('⚠️ Pages picked, but not saved to your account yet — press Save.');
+    }
 }
 
 // Open the picker for a class slot. scope 'sub' (default) or 'emergency'.
@@ -216,6 +251,7 @@ function pagePickerSave() {
     if (host) host.innerHTML = subWorkChipsHTML(storeKey, scope);
     document.getElementById('page-picker-modal').classList.add('hidden');
     showToast(pages.length ? `✅ ${pages.length} page${pages.length !== 1 ? 's' : ''} added` : 'Selection cleared for that resource');
+    persistPickedPages(scope, storeKey);
 }
 
 // Render specific page numbers of a PDF to full-size JPEG data URLs

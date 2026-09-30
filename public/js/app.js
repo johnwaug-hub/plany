@@ -1,4 +1,4 @@
-// PLANY - Main Application v6.9.0
+// PLANY - Main Application v6.9.1
 // GENERATED FILE -- edit the feature files in src/app/ and run `npm run build`.
 // (public/js/app.js is those files joined in order; `npm test` fails if it is stale.)
 // ==================================================
@@ -12746,7 +12746,10 @@ function buildSubScheduleBlocks(dateStr, saved) {
     container.innerHTML = classSlots.map(({ cls, slotIndex: si, slot, slotCount }) => {
         // Key for per-slot saved data: "classId_slotIndex" for multi-slot, "classId" for single
         const slotKey = slotCount > 1 ? `${cls.id}_${si}` : cls.id;
-        subWorkPages[slotKey] = (saved?.classInstructions?.[slotKey]?.workPages) || (subClassDefaults[cls.id]?.workPages) || [];
+        // v6.9.1: saved.workPicks is written the moment pages are picked;
+        // classInstructions[..].workPages is what older full saves wrote.
+        subWorkPages[slotKey] = saved?.workPicks?.[slotKey]
+            || (saved?.classInstructions?.[slotKey]?.workPages) || (subClassDefaults[cls.id]?.workPages) || [];
         const timeStr = slot ? formatTimeSlot(slot) : buildTimeStr(cls, dayKey);
         const sessionLabel = slotCount > 1 ? ` · Session ${si + 1}` : '';
         const savedInstructions = saved?.classInstructions?.[slotKey];
@@ -12907,6 +12910,7 @@ function collectSubDayData(dateStr) {
 
     // Collect per-class instructions + approved tech pills
     // Key is slotKey (classId_slotIndex for multi-slot, classId for single-slot)
+    data.workPicks = JSON.parse(JSON.stringify(subWorkPages || {}));
     data.classInstructions = {};
     document.querySelectorAll('#sub-schedule-blocks .sub-class-block').forEach(block => {
         const classId = block.dataset.classId;
@@ -12921,7 +12925,7 @@ function collectSubDayData(dateStr) {
             instructions: block.querySelector('.sub-class-instructions')?.value || '',
             materials:    block.querySelector('.sub-class-materials')?.value || '',
             notes:        block.querySelector('.sub-class-notes')?.value || '',
-            workPages:    subWorkPages[slotKey] || [],
+            workPages:    subWorkPages[slotKey] || [],   // kept for older versions
             computerTime: {
                 enabled:       approvedToolIds.length > 0,
                 approvedToolIds,
@@ -12996,7 +13000,8 @@ function pushDefaultToSub(btn) {
 }
 
 // Save sub day to Firestore
-async function saveSubDay() {
+async function saveSubDay(opts) {
+    const quiet = !!(opts && opts.quiet === true);
     const modal = document.getElementById('sub-day-modal');
     const dateStr = modal.dataset.date;
     if (!dateStr) { showToast('❌ No date set — reopen the packet'); return; }
@@ -13026,7 +13031,9 @@ async function saveSubDay() {
         subDays[dateStr] = { ...subDays[dateStr], ...cleanData };
         renderCalendar();
         if (typeof renderDayView === 'function' && !document.getElementById('day-view')?.classList.contains('hidden')) renderDayView();
-        showToast(isSubDay ? '✅ Saved — this day is now a Sub Day' : '✅ Sub Day packet saved!');
+        if (!quiet) showToast(isSubDay ? '✅ Saved — this day is now a Sub Day' : '✅ Sub Day packet saved!');
+        const st = document.getElementById('sub-defaults-status');
+        if (st) st.textContent = '✏️ Editing saved packet';
     } catch (e) {
         console.error('Save sub day error:', e.code, e.message, e);
         // If the full save failed, try to at least save the isSubDay flag
@@ -13476,6 +13483,41 @@ function removeSubWork(storeKey, resourceId, scope = 'sub') {
     store[storeKey] = (store[storeKey] || []).filter(s => s.resourceId !== resourceId);
     const host = _ppChipHost(storeKey, scope);
     if (host) host.innerHTML = subWorkChipsHTML(storeKey, scope);
+    persistPickedPages(scope, storeKey);
+}
+
+// v6.9.1: save picked pages right away, so they're on every computer even if
+// the packet's Save button is never pressed.
+//  - Sub Day: an existing packet gets just its workPicks map updated; a day
+//    with no saved packet yet is saved in full (same as pressing Save), so the
+//    rest of the form isn't left half-empty on the other computer.
+//  - Emergency plans: only that period's workPages.
+async function persistPickedPages(scope, storeKey) {
+    if (!currentUser || (typeof _previewTeacher !== 'undefined' && _previewTeacher)) return;
+    try {
+        if (scope === 'emergency') {
+            const dow = storeKey.split('::')[0], slotKey = _ppRawSlot(storeKey, scope);
+            const workPages = JSON.parse(JSON.stringify(emergencyWorkPages[storeKey] || []));
+            await db.collection('users').doc(currentUser.uid).collection('settings').doc('emergencySubPlans')
+                .set({ days: { [dow]: { periods: { [slotKey]: { workPages } } } } }, { merge: true });
+            if (!emergencySubPlans.days) emergencySubPlans.days = {};
+            if (!emergencySubPlans.days[dow]) emergencySubPlans.days[dow] = { periods: {} };
+            if (!emergencySubPlans.days[dow].periods) emergencySubPlans.days[dow].periods = {};
+            emergencySubPlans.days[dow].periods[slotKey] = { ...(emergencySubPlans.days[dow].periods[slotKey] || {}), workPages };
+            return;
+        }
+        const dateStr = document.getElementById('sub-day-modal')?.dataset.date;
+        if (!dateStr) return;
+        if (!subDays[dateStr]) { await saveSubDay({ quiet: true }); return; }
+        const workPicks = JSON.parse(JSON.stringify(subWorkPages || {}));
+        await getYearPath().collection('subDays').doc(dateStr).set({
+            workPicks, updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+        subDays[dateStr] = { ...subDays[dateStr], workPicks };
+    } catch (e) {
+        console.warn('persistPickedPages:', e.message);
+        showToast('⚠️ Pages picked, but not saved to your account yet — press Save.');
+    }
 }
 
 // Open the picker for a class slot. scope 'sub' (default) or 'emergency'.
@@ -13628,6 +13670,7 @@ function pagePickerSave() {
     if (host) host.innerHTML = subWorkChipsHTML(storeKey, scope);
     document.getElementById('page-picker-modal').classList.add('hidden');
     showToast(pages.length ? `✅ ${pages.length} page${pages.length !== 1 ? 's' : ''} added` : 'Selection cleared for that resource');
+    persistPickedPages(scope, storeKey);
 }
 
 // Render specific page numbers of a PDF to full-size JPEG data URLs

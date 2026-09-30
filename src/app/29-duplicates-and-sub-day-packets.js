@@ -330,7 +330,10 @@ function buildSubScheduleBlocks(dateStr, saved) {
     container.innerHTML = classSlots.map(({ cls, slotIndex: si, slot, slotCount }) => {
         // Key for per-slot saved data: "classId_slotIndex" for multi-slot, "classId" for single
         const slotKey = slotCount > 1 ? `${cls.id}_${si}` : cls.id;
-        subWorkPages[slotKey] = (saved?.classInstructions?.[slotKey]?.workPages) || (subClassDefaults[cls.id]?.workPages) || [];
+        // v6.9.1: saved.workPicks is written the moment pages are picked;
+        // classInstructions[..].workPages is what older full saves wrote.
+        subWorkPages[slotKey] = saved?.workPicks?.[slotKey]
+            || (saved?.classInstructions?.[slotKey]?.workPages) || (subClassDefaults[cls.id]?.workPages) || [];
         const timeStr = slot ? formatTimeSlot(slot) : buildTimeStr(cls, dayKey);
         const sessionLabel = slotCount > 1 ? ` · Session ${si + 1}` : '';
         const savedInstructions = saved?.classInstructions?.[slotKey];
@@ -491,6 +494,7 @@ function collectSubDayData(dateStr) {
 
     // Collect per-class instructions + approved tech pills
     // Key is slotKey (classId_slotIndex for multi-slot, classId for single-slot)
+    data.workPicks = JSON.parse(JSON.stringify(subWorkPages || {}));
     data.classInstructions = {};
     document.querySelectorAll('#sub-schedule-blocks .sub-class-block').forEach(block => {
         const classId = block.dataset.classId;
@@ -505,7 +509,7 @@ function collectSubDayData(dateStr) {
             instructions: block.querySelector('.sub-class-instructions')?.value || '',
             materials:    block.querySelector('.sub-class-materials')?.value || '',
             notes:        block.querySelector('.sub-class-notes')?.value || '',
-            workPages:    subWorkPages[slotKey] || [],
+            workPages:    subWorkPages[slotKey] || [],   // kept for older versions
             computerTime: {
                 enabled:       approvedToolIds.length > 0,
                 approvedToolIds,
@@ -580,7 +584,8 @@ function pushDefaultToSub(btn) {
 }
 
 // Save sub day to Firestore
-async function saveSubDay() {
+async function saveSubDay(opts) {
+    const quiet = !!(opts && opts.quiet === true);
     const modal = document.getElementById('sub-day-modal');
     const dateStr = modal.dataset.date;
     if (!dateStr) { showToast('❌ No date set — reopen the packet'); return; }
@@ -610,7 +615,9 @@ async function saveSubDay() {
         subDays[dateStr] = { ...subDays[dateStr], ...cleanData };
         renderCalendar();
         if (typeof renderDayView === 'function' && !document.getElementById('day-view')?.classList.contains('hidden')) renderDayView();
-        showToast(isSubDay ? '✅ Saved — this day is now a Sub Day' : '✅ Sub Day packet saved!');
+        if (!quiet) showToast(isSubDay ? '✅ Saved — this day is now a Sub Day' : '✅ Sub Day packet saved!');
+        const st = document.getElementById('sub-defaults-status');
+        if (st) st.textContent = '✏️ Editing saved packet';
     } catch (e) {
         console.error('Save sub day error:', e.code, e.message, e);
         // If the full save failed, try to at least save the isSubDay flag
