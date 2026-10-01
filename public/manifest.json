@@ -3,7 +3,7 @@
     "short_name": "PLANY",
     "id": "/",
     "description": "Lesson Planning Made Simple for Teachers",
-    "version": "6.9.1",
+    "version": "6.9.2",
     "start_url": "/",
     "scope": "/",
     "display": "standalone",

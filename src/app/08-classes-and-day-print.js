@@ -118,9 +118,9 @@ document.getElementById('day-view-print-btn')?.addEventListener('click', () => {
 });
 
 document.getElementById('day-view-sub-btn')?.addEventListener('click', () => {
-    // Opened from the Day view: this IS the "make today a sub day" action, so
-    // the day is marked as a sub day up front instead of relying on the toggle.
-    openSubDayModal(formatDate(currentDayDate), { markAsSubDay: true });
+    // Opens the packet; the "Mark as Sub Day" box decides whether the day is
+    // marked (v6.9.2 -- it no longer pre-checks the box).
+    openSubDayModal(formatDate(currentDayDate));
 });
 
 document.getElementById('day-view-add-event-btn')?.addEventListener('click', () => {

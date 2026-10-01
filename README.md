@@ -1,6 +1,13 @@
-# PLANY v6.9.1 - Lesson Planning PWA
+# PLANY v6.9.2 - Lesson Planning PWA
 
 A modern lesson planning app for teachers with an 80's inspired design.
+
+## What's New in v6.9.2 - Sub Day Checkbox Fix 🙋
+
+- **Fix: the "Mark as Sub Day" box shows the day's real state.** Opened from Day view, it was already checked
+  before anything was saved, and clicking it always marked the day (it could never be unchecked). Now it's
+  unchecked until the day is marked; checking marks the day and unchecking removes the mark, saved right away
+  ("🙋 Marked as a Sub Day" / "Sub Day mark removed").
 
 ## What's New in v6.9.1 - Picked Pages Follow You 📄
 

@@ -194,7 +194,7 @@ function initPacketGenerator(dateStr) {
 
     // Save immediately whenever the sub-day flag itself is toggled, so it's
     // never lost even if the teacher closes the modal without printing.
-    if (markedToggle) markedToggle.onchange = () => saveSubDay();
+    if (markedToggle) markedToggle.onchange = () => saveSubDay({ toggled: true });
 
     const defaultsBtn = document.getElementById('sub-day-defaults-btn');
     if (defaultsBtn) defaultsBtn.onclick = () => saveSubDayDefaults();
@@ -249,11 +249,13 @@ function openSubDayModal(dateStr, opts) {
     // Init AI packet generator (resource picker + status)
     initPacketGenerator(dateStr);
 
-    // Set the "Mark as Sub Day" toggle from saved data. When the packet was
-    // opened via "Create Sub Day" (Day view), the day is marked from the start.
+    // The "Mark as Sub Day" box shows exactly what's saved; checking or
+    // unchecking it saves right away (v6.9.2 -- it used to show checked when
+    // opened from Day view before anything was saved, and a hidden "force"
+    // flag turned every click into "mark", so it could never be unchecked).
     const markedToggle = document.getElementById('sub-day-marked-toggle');
-    if (markedToggle) markedToggle.checked = opts.markAsSubDay === true || subDays[dateStr]?.isSubDay === true;
-    document.getElementById('sub-day-modal').dataset.forceSubDay = opts.markAsSubDay === true ? '1' : '';
+    if (markedToggle) markedToggle.checked = subDays[dateStr]?.isSubDay === true;
+    delete document.getElementById('sub-day-modal').dataset.forceSubDay;
 
     // Show packet exists / not exists badge
     updatePacketBadge(dateStr);
@@ -590,10 +592,7 @@ async function saveSubDay(opts) {
     const dateStr = modal.dataset.date;
     if (!dateStr) { showToast('❌ No date set — reopen the packet'); return; }
 
-    const isSubDay = document.getElementById('sub-day-marked-toggle')?.checked === true
-        || modal.dataset.forceSubDay === '1';
-    const markedToggleEl = document.getElementById('sub-day-marked-toggle');
-    if (markedToggleEl && isSubDay) markedToggleEl.checked = true;
+    const isSubDay = document.getElementById('sub-day-marked-toggle')?.checked === true;
     const data = collectSubDayData(dateStr);
     data.isSubDay = isSubDay;
     data.createStudentWork = document.getElementById('sub-create-student-work')?.checked === true;
@@ -615,7 +614,9 @@ async function saveSubDay(opts) {
         subDays[dateStr] = { ...subDays[dateStr], ...cleanData };
         renderCalendar();
         if (typeof renderDayView === 'function' && !document.getElementById('day-view')?.classList.contains('hidden')) renderDayView();
-        if (!quiet) showToast(isSubDay ? '✅ Saved — this day is now a Sub Day' : '✅ Sub Day packet saved!');
+        if (!quiet) showToast(opts && opts.toggled
+            ? (isSubDay ? '🙋 Marked as a Sub Day' : 'Sub Day mark removed')
+            : (isSubDay ? '✅ Saved — this day is now a Sub Day' : '✅ Sub Day packet saved!'));
         const st = document.getElementById('sub-defaults-status');
         if (st) st.textContent = '✏️ Editing saved packet';
     } catch (e) {
