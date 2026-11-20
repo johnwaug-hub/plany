@@ -1,6 +1,53 @@
-# PLANY v6.9.2 - Lesson Planning PWA
+# PLANY v6.10.0 - Lesson Planning PWA
 
 A modern lesson planning app for teachers with an 80's inspired design.
+
+## What's New in v6.10.0 - Faster Page Picker, One Pages PDF ⬇️
+
+- **Page picker opens right away.** Every page's tile shows up at once, numbered and ready to tap; each
+  preview is drawn only as you scroll to it, so a 200-page workbook no longer means waiting for all 200.
+  PDFs you've already opened this session don't download again.
+- **Picked pages now download as one PDF.** "📄 Print Picked Pages" is now **⬇️ Download Pages PDF**: the
+  actual pages are copied out of your original PDFs (crisp, not redrawn as pictures) into one file in class
+  order, ready to print or save. Emergency Sub Plans' buttons work the same way (⬇️ Day Pages PDF /
+  ⬇️ All Pages PDF). 🖨️ Print Plan is unchanged.
+- pdf-lib 1.17.1 (MIT) is now served from plany.work for building the PDF.
+
+## What's New in v6.9.7 - AI Work Packet Retired 🧹
+
+- **Removed the 🤖 AI Student Work Packet from the Sub Day planner** — the toggle, Packet Style / Special
+  Instructions, ✨ Generate Student Packet, 📄 Print AI Work, each class's "📝 AI work" checkbox, and the
+  "No packet yet" badge. Print Plan no longer appends an AI packet. Hand-picked 📄 Student Work Pages and
+  Print Picked Pages are unchanged and are now the way to build student work for a sub day.
+
+## What's New in v6.9.6 - Class Instructions Follow Defaults 📌
+
+- **Fix: ⭐ Save as Defaults now also updates each class's Sub Instructions, Materials and Notes** in every
+  upcoming sub day that already has a packet (v6.9.4 only carried the general fields).
+- Classes that meet more than once a day (e.g. BenchMark Session 1 / Session 2) now keep a separate default
+  per session, so saving defaults no longer copies one session's instructions over the other.
+
+## What's New in v6.9.5 - Sub Day Packet Saves on Close 🙋
+
+- **Fix: closing a Sub Day packet with edits no longer asks "Close without saving?"** The packet has no Save
+  button, so that prompt only offered to throw edits away. Closing (×, Esc or clicking outside) now saves the
+  packet and shows "✅ Sub Day packet saved". If the save fails, you're asked before anything is lost.
+
+## What's New in v6.9.4 - Defaults Reach Every Upcoming Sub Day ⭐
+
+- **Fix: ⭐ Save as Defaults now updates every upcoming sub day that already has a packet.** v6.9.3 only
+  pushed fields that changed in that save, so text already saved as a default earlier never reached other
+  days. Now all default fields (Student Alerts & Notes, routines, contacts, etc.) are copied into every upcoming
+  saved packet, and the toast says how many days were updated. Past sub days are untouched. To make one day
+  different, edit that day after saving defaults.
+
+## What's New in v6.9.3 - Sub Day Defaults Stick ⭐
+
+- **Fix: "Save as Defaults" now shows up on days that already have a packet.** A day with a saved packet
+  (marked as a Sub Day, or printed) loaded its own old copy of the fields, so edits to Student Alerts & Notes
+  (and other default fields) seemed not to save. Now saving defaults also saves the open day's packet, and
+  every upcoming saved packet picks up any field you changed in that save (and fills any blank fields).
+  Fields you didn't change keep whatever each day already had.
 
 ## What's New in v6.9.2 - Sub Day Checkbox Fix 🙋
 

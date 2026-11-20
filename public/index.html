@@ -1338,7 +1338,7 @@
                 <span class="nav-label">Staff</span>
                 <span id="principal-badge" class="unread-badge hidden">0</span>
             </button>
-            <span class="nav-version">v6.9.2</span>
+            <span class="nav-version">v6.10.0</span>
         </nav>
 
 
@@ -1798,7 +1798,6 @@
                     <div>
                         <h2 id="sub-day-modal-title">Sub Day Packet</h2>
                         <p id="sub-day-modal-date" class="sub-day-subtitle"></p>
-                        <span id="sub-packet-badge" class="sub-packet-badge hidden"></span>
                     </div>
                 </div>
                 <label class="sub-day-toggle-label" title="Mark this date as a Sub Day — adds the 🙋 icon to your calendar">
@@ -1814,9 +1813,6 @@
                     <div><div style="font-size:0.82rem;font-weight:600;">💻 Classroom Technology</div><div style="font-size:0.72rem;color:var(--text-secondary);">Manage devices &amp; apps for sub instructions</div></div>
                     <button class="btn btn-ghost btn-sm" onclick="document.getElementById('tech-modal').classList.remove('hidden')">Manage →</button>
                 </div>
-
-                <!-- Sticky AI generation status (visible during packet generation) -->
-                <div id="sub-ai-sticky-status" class="sub-ai-sticky-status hidden"></div>
 
                     <!-- Teacher & Classroom Info -->
                     <div class="sub-section">
@@ -1956,38 +1952,6 @@
                         </div>
                     </div>
 
-                    <!-- AI Student Work Packet Toggle -->
-                    <div class="sub-section sub-ai-section" id="sub-ai-section">
-                        <div class="sub-ai-toggle-row">
-                            <div class="sub-ai-toggle-info">
-                                <h3 class="sub-section-title" style="margin:0;">🤖 AI Student Work Packet</h3>
-                                <p class="sub-section-hint" style="margin:4px 0 0;">Claude builds a printable student packet from your lesson plans and curriculum library.</p>
-                            </div>
-                            <label class="sub-ai-master-toggle">
-                                <input type="checkbox" id="sub-create-student-work">
-                                <span class="sub-ai-toggle-switch"></span>
-                            </label>
-                        </div>
-                        <div id="sub-ai-options" class="sub-ai-options hidden">
-                            <div class="form-group">
-                                <label>📋 Packet Style</label>
-                                <select id="sub-ai-style" class="form-control">
-                                    <option value="worksheets">Worksheets &amp; Practice Problems</option>
-                                    <option value="activities">Activities &amp; Games</option>
-                                    <option value="mixed" selected>2 Activities per Class (each 1 full page)</option>
-                                    <option value="reading">Reading Passages + Comprehension</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>🗒️ Special Instructions <span style="font-size:0.75rem;opacity:0.6;">(optional)</span></label>
-                                <textarea id="sub-ai-instructions" class="form-control" rows="2"
-                                    placeholder="e.g. Keep it simple, no cutting required, include an answer key..."></textarea>
-                            </div>
-                        </div>
-                        <button type="button" id="sub-ai-generate-btn" class="btn btn-primary sub-generate-btn">✨ Generate Student Packet</button>
-                        <div id="sub-ai-status" class="sub-ai-status"></div>
-                    </div>
-
                     <!-- Sub Feedback -->
                     <div class="sub-section">
                         <h3 class="sub-section-title">📝 Please Leave a Note</h3>
@@ -2003,8 +1967,7 @@
                 <button type="button" id="sub-day-defaults-btn" class="btn btn-ghost sub-defaults-btn" title="Save these values as your default template for all future Sub Day packets">⭐ Save as Defaults</button>
                 <div class="sub-day-print-group">
                     <button type="button" id="sub-day-print-btn" class="btn btn-secondary">🖨️ Print Plan</button>
-                    <button type="button" id="sub-day-picked-pages-btn" class="btn btn-primary" title="Print the exact PDF pages you picked for each class">📄 Print Picked Pages</button>
-                    <button type="button" id="sub-day-student-work-btn" class="btn btn-primary">📄 Print AI Work</button>
+                    <button type="button" id="sub-day-picked-pages-btn" class="btn btn-primary" title="Download one PDF of the exact pages you picked for each class, ready to print">⬇️ Download Pages PDF</button>
                 </div>
             </div>
         </div>
@@ -2074,8 +2037,8 @@
                 <div class="es-print-group">
                     <button type="button" class="btn btn-secondary" onclick="printEmergencyDay()">🖨️ Print This Day</button>
                     <button type="button" class="btn btn-secondary" onclick="printEmergencyAll()">🖨️ Print All 5</button>
-                    <button type="button" class="btn btn-primary" onclick="printEmergencyStudentWork(false)" title="Print the picked pages for this day">📄 Student Work</button>
-                    <button type="button" class="btn btn-primary" onclick="printEmergencyStudentWork(true)" title="Print picked pages across all 5 days">📄 All Work</button>
+                    <button type="button" class="btn btn-primary" onclick="printEmergencyStudentWork(false)" title="Download one PDF of the picked pages for this day">⬇️ Day Pages PDF</button>
+                    <button type="button" class="btn btn-primary" onclick="printEmergencyStudentWork(true)" title="Download one PDF of the picked pages for all 5 days">⬇️ All Pages PDF</button>
                 </div>
             </div>
         </div>

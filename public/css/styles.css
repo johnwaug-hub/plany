@@ -8641,6 +8641,10 @@ body.bg-custom::before {
 
 /* Page-picker: placeholder for a page whose preview couldn't render */
 .pp-thumb-failed { background: #f4f4f8; min-height: 150px; display: flex; align-items: center; justify-content: center; }
+/* v6.10.0: tile waiting for its preview to draw */
+.pp-thumb-pending { background: linear-gradient(110deg, #ececf2 30%, #f8f8fb 50%, #ececf2 70%); background-size: 200% 100%; animation: ppShimmer 1.2s linear infinite; }
+@keyframes ppShimmer { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .pp-thumb-pending { animation: none; } }
 .pp-thumb-fail { text-align: center; font-size: 0.85rem; font-weight: 700; color: #555; padding: 12px; line-height: 1.3; }
 .pp-thumb-fail span { display: block; font-size: 0.75rem; font-weight: 400; color: #999; margin-top: 4px; }
 

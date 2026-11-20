@@ -1,4 +1,4 @@
-// PLANY - Main Application v6.9.2
+// PLANY - Main Application v6.10.0
 // GENERATED FILE -- edit the feature files in src/app/ and run `npm run build`.
 // (public/js/app.js is those files joined in order; `npm test` fails if it is stale.)
 // ==================================================
@@ -256,7 +256,7 @@ function hasEffectiveAiKey() {
 // key (own or shared) is available. New AI features just get their element
 // id added to one of these two lists.
 const AI_GATED_ACCORDION_IDS = ['accord-scan', 'accord-ai-fill', 'accord-quiz', 'accord-smart-import'];
-const AI_GATED_ELEMENT_IDS = ['newsletter-year-btn', 'newsletter-month-btn', 'newsletter-week-btn', 'anchor-charts-week-btn', 'sub-ai-section', 'curgen-open-btn', 'diffgen-open-btn'];
+const AI_GATED_ELEMENT_IDS = ['newsletter-year-btn', 'newsletter-month-btn', 'newsletter-week-btn', 'anchor-charts-week-btn', 'curgen-open-btn', 'diffgen-open-btn'];
 
 function applyAiFeatureGating() {
     const unlocked = hasEffectiveAiKey();
@@ -3629,6 +3629,16 @@ function topOpenModal() {
 // they chose to keep editing.
 async function dismissModal(modal) {
     if (!modal) return true;
+    // v6.9.5: the Sub Day packet has no Save button (it saves on Mark / Print),
+    // so closing it saves the edits instead of offering only "discard".
+    if (modal.id === 'sub-day-modal' && modal.dataset.dirty === '1') {
+        await saveSubDay({ quiet: true });
+        if (modal.dataset.dirty === '') showToast('✅ Sub Day packet saved');
+        else if (!(await planyConfirm('Could not save this packet. Close anyway and lose your edits?', { okText: 'Close anyway', cancelText: 'Keep editing', danger: true }))) return false;
+        modal.dataset.dirty = '';
+        closeModal(modal);
+        return true;
+    }
     if (modal.dataset.dirty === '1' && !(await planyConfirm('You have unsaved changes. Close without saving?', { okText: 'Discard changes', cancelText: 'Keep editing', danger: true }))) return false;
     modal.dataset.dirty = '';
     closeModal(modal);
@@ -4939,7 +4949,10 @@ const LIBS = {
     xlsx:  { src: 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js', ready: () => typeof XLSX !== 'undefined' },
     jszip: { src: 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js', ready: () => typeof JSZip !== 'undefined' },
     // v6.9.0: QR codes for share links (qrcode-generator 1.4.4, MIT), served from plany.work
-    qrcode: { src: '/vendor/qrcode/qrcode.min.js', ready: () => typeof qrcode !== 'undefined' }
+    qrcode: { src: '/vendor/qrcode/qrcode.min.js', ready: () => typeof qrcode !== 'undefined' },
+    // v6.10.0: pdf-lib 1.17.1 (MIT), served from plany.work -- copies the real
+    // pages out of curriculum PDFs into one downloadable PDF.
+    pdflib: { src: '/vendor/pdflib/pdf-lib.min.js', ready: () => typeof PDFLib !== 'undefined' }
 };
 const _libPromises = {};
 function ensureLib(name) {
@@ -12545,11 +12558,16 @@ async function saveSubDayDefaults() {
     const classData = {};
     document.querySelectorAll('#sub-schedule-blocks .sub-class-block').forEach(block => {
         const classId = block.dataset.classId;
-        classData[classId] = {
+        const slotKey = block.dataset.slotKey || classId;
+        const vals = {
             instructions: block.querySelector('.sub-class-instructions')?.value || '',
             materials:    block.querySelector('.sub-class-materials')?.value || '',
             notes:        block.querySelector('.sub-class-notes')?.value || ''
         };
+        // v6.9.6: a class that meets more than once a day (Session 1/2) keeps a
+        // default per session; the class-level default is its first session.
+        if (slotKey !== classId) classData[slotKey] = vals;
+        if (!classData[classId]) classData[classId] = vals;
     });
 
     try {
@@ -12558,6 +12576,52 @@ async function saveSubDayDefaults() {
         await userSettings.doc('subClassDefaults').set(classData, { merge: true });
         subDayDefaults   = { ...data };
         subClassDefaults = { ...subClassDefaults, ...classData };
+
+        // v6.9.3 -- a day that already has a saved packet loads that packet's
+        // own copy of these fields, so saving defaults alone left the open day
+        // (and other upcoming sub days) showing the old Student Alerts etc.
+        // Save the open day's packet too, and copy the defaults into every
+        // upcoming saved packet (v6.9.4 -- Save as Defaults applies to all
+        // upcoming sub days; edit a single day afterward to customize it).
+        const openDate = document.getElementById('sub-day-modal')?.dataset.date;
+        if (openDate && subDays[openDate]) await saveSubDay({ quiet: true });
+        else { const m = document.getElementById('sub-day-modal'); if (m) m.dataset.dirty = ''; }
+        const today = formatDate(new Date());
+        const yearPath = getYearPath();
+        let updatedDays = 0;
+        for (const [ds, pkt] of Object.entries(subDays)) {
+            if (ds === openDate || ds < today || !pkt) continue;
+            const upd = {};
+            SUB_DEFAULT_FIELDS.forEach(id => {
+                if (data[id] !== undefined && pkt[id] !== data[id]) upd[id] = data[id];
+            });
+            // Per-class sub instructions / materials / notes (v6.9.6)
+            Object.entries(pkt.classInstructions || {}).forEach(([k, ci]) => {
+                const cid = Object.keys(classData).find(c => k === c || k.startsWith(c + '_'));
+                const d = classData[k] || (cid && classData[cid]);
+                if (!d || !ci) return;
+                if (ci.instructions === d.instructions && ci.materials === d.materials && ci.notes === d.notes) return;
+                if (!upd.classInstructions) upd.classInstructions = {};
+                upd.classInstructions[k] = { instructions: d.instructions, materials: d.materials, notes: d.notes };
+            });
+            if (!Object.keys(upd).length) continue;
+            try {
+                await yearPath.collection('subDays').doc(ds).set(upd, { merge: true });
+                const merged = { ...pkt, ...upd };
+                if (upd.classInstructions) {
+                    merged.classInstructions = { ...(pkt.classInstructions || {}) };
+                    Object.entries(upd.classInstructions).forEach(([k, v]) => {
+                        merged.classInstructions[k] = { ...(pkt.classInstructions?.[k] || {}), ...v };
+                    });
+                }
+                subDays[ds] = merged;
+                updatedDays++;
+            } catch (e) { console.warn('Could not update sub day ' + ds + ' with new defaults:', e); }
+        }
+        if (updatedDays) {
+            showToast(`✅ Defaults saved and applied to ${updatedDays} upcoming sub day${updatedDays === 1 ? '' : 's'}.`);
+            return;
+        }
         showToast('✅ Defaults saved! Every new Sub Day packet will pre-fill with these values.');
     } catch (e) {
         console.error('Save defaults error:', e);
@@ -12566,47 +12630,11 @@ async function saveSubDayDefaults() {
 }
 
 // Open sub day modal for a given date
-function updatePacketBadge(dateStr) {
-    const badge = document.getElementById('sub-packet-badge');
-    if (!badge) return;
-    const has = !!subDays[dateStr]?.generatedPacket;
-    badge.classList.remove('hidden', 'has-packet', 'no-packet');
-    if (has) {
-        badge.classList.add('has-packet');
-        badge.textContent = '✓ Student Packet Ready';
-    } else {
-        badge.classList.add('no-packet');
-        badge.textContent = '○ No Packet Yet';
-    }
-}
-
-// Wire up the AI Student Work Packet section (toggle, generate button, and
-// the modal's footer action buttons) each time the Sub Day modal opens.
-// Uses .onclick/.onchange (not addEventListener) so re-opening the modal for
-// a different date never stacks duplicate handlers from the previous date.
+// Wire up the Sub Day modal's buttons each time it opens. Uses .onclick /
+// .onchange (not addEventListener) so re-opening the modal for a different
+// date never stacks duplicate handlers from the previous date.
 function initPacketGenerator(dateStr) {
-    const toggle   = document.getElementById('sub-create-student-work');
-    const options   = document.getElementById('sub-ai-options');
-    const statusEl  = document.getElementById('sub-ai-status');
-    const stickyEl  = document.getElementById('sub-ai-sticky-status');
-    const genBtn    = document.getElementById('sub-ai-generate-btn');
-    const styleEl   = document.getElementById('sub-ai-style');
-    const instrEl   = document.getElementById('sub-ai-instructions');
     const markedToggle = document.getElementById('sub-day-marked-toggle');
-
-    if (statusEl) statusEl.textContent = '';
-    if (stickyEl) { stickyEl.textContent = ''; stickyEl.classList.add('hidden'); }
-
-    const saved = subDays[dateStr] || {};
-    if (toggle) {
-        toggle.checked = saved.createStudentWork === true;
-        options?.classList.toggle('hidden', !toggle.checked);
-        toggle.onchange = () => options?.classList.toggle('hidden', !toggle.checked);
-    }
-    if (styleEl) styleEl.value = saved.aiStyle || 'mixed';
-    if (instrEl) instrEl.value = saved.aiInstructions || '';
-
-    if (genBtn) genBtn.onclick = () => generateSubDayStudentPacket(dateStr);
 
     // Save immediately whenever the sub-day flag itself is toggled, so it's
     // never lost even if the teacher closes the modal without printing.
@@ -12617,9 +12645,6 @@ function initPacketGenerator(dateStr) {
 
     const printPlanBtn = document.getElementById('sub-day-print-btn');
     if (printPlanBtn) printPlanBtn.onclick = async () => { await saveSubDay(); printSubPacket(); };
-
-    const printWorkBtn = document.getElementById('sub-day-student-work-btn');
-    if (printWorkBtn) printWorkBtn.onclick = () => printSubDayStudentWork(dateStr);
 
     const pickedPagesBtn = document.getElementById('sub-day-picked-pages-btn');
     if (pickedPagesBtn) pickedPagesBtn.onclick = () => printSubDayPickedPages(dateStr);
@@ -12672,9 +12697,6 @@ function openSubDayModal(dateStr, opts) {
     const markedToggle = document.getElementById('sub-day-marked-toggle');
     if (markedToggle) markedToggle.checked = subDays[dateStr]?.isSubDay === true;
     delete document.getElementById('sub-day-modal').dataset.forceSubDay;
-
-    // Show packet exists / not exists badge
-    updatePacketBadge(dateStr);
 
     document.getElementById('sub-day-modal').classList.remove('hidden');
 }
@@ -12755,7 +12777,7 @@ function buildSubScheduleBlocks(dateStr, saved) {
         const timeStr = slot ? formatTimeSlot(slot) : buildTimeStr(cls, dayKey);
         const sessionLabel = slotCount > 1 ? ` · Session ${si + 1}` : '';
         const savedInstructions = saved?.classInstructions?.[slotKey];
-        const classDefault      = subClassDefaults[cls.id] || {};
+        const classDefault      = subClassDefaults[slotKey] || subClassDefaults[cls.id] || {};
         const lesson = findLessonForSlot(dayLessons, cls.id, si);
         const lessonText = lesson
             ? `Lesson: ${lesson.title || ''}${lesson.objectives ? '\nObjectives: ' + lesson.objectives : ''}${lesson.activities ? '\nActivities: ' + lesson.activities : ''}${lesson.materials ? '\nMaterials: ' + lesson.materials : ''}`
@@ -12807,22 +12829,15 @@ function buildSubScheduleBlocks(dateStr, saved) {
               }).join('')
             : '<span style="font-size:0.78rem;color:var(--text-muted);">No tech tools added yet — add them in Settings → Classroom Technology</span>';
 
-        const savedIncluded = savedInstructions?.included !== false; // default true
 
         return `
-        <div class="sub-class-block${savedIncluded ? '' : ' excluded'}" data-class-id="${cls.id}" data-slot-key="${slotKey}" style="border-left: 4px solid ${cls.color || '#FF6B9D'}">
+        <div class="sub-class-block" data-class-id="${cls.id}" data-slot-key="${slotKey}" style="border-left: 4px solid ${cls.color || '#FF6B9D'}">
             <div class="sub-class-block-header">
                 <div class="sub-class-block-color-dot" style="background:${cls.color || '#FF6B9D'}"></div>
                 <div class="sub-class-block-title">
                     <strong>${escHtml(cls.name)}${sessionLabel}</strong>
                     <span class="sub-class-time">${timeStr}${cls.room ? ' · ' + escHtml(cls.room) : ''}</span>
                 </div>
-                <label class="sub-class-include-label" title="Include this class when generating the AI Student Work Packet">
-                    <input type="checkbox" class="sub-class-include" data-class-id="${cls.id}"
-                        ${savedIncluded ? 'checked' : ''}
-                        onchange="toggleSubClassInclude(this)">
-                    <span>📝 AI work</span>
-                </label>
             </div>
             <div class="sub-lesson-row">
                 ${lessonBadge}
@@ -12883,17 +12898,6 @@ function buildSubScheduleBlocks(dateStr, saved) {
     }).join('');
 }
 
-// Toggle a class block's included/excluded state
-function toggleSubClassInclude(checkbox) {
-    const block = checkbox.closest('.sub-class-block');
-    if (!block) return;
-    if (checkbox.checked) {
-        block.classList.remove('excluded');
-    } else {
-        block.classList.add('excluded');
-    }
-}
-
 // Collect all form values into a data object
 function collectSubDayData(dateStr) {
     const data = { date: dateStr };
@@ -12921,9 +12925,7 @@ function collectSubDayData(dateStr) {
         const activePills = Array.from(block.querySelectorAll('.tech-pill-active'));
         const approvedToolIds = activePills.map(p => p.dataset.toolId);
         const approvedTools = approvedToolIds.map(id => techTools.find(t => t.id === id)).filter(Boolean);
-        const includeCheckbox = block.querySelector('.sub-class-include');
         data.classInstructions[slotKey] = {
-            included:     includeCheckbox ? includeCheckbox.checked : true,
             instructions: block.querySelector('.sub-class-instructions')?.value || '',
             materials:    block.querySelector('.sub-class-materials')?.value || '',
             notes:        block.querySelector('.sub-class-notes')?.value || '',
@@ -13011,13 +13013,7 @@ async function saveSubDay(opts) {
     const isSubDay = document.getElementById('sub-day-marked-toggle')?.checked === true;
     const data = collectSubDayData(dateStr);
     data.isSubDay = isSubDay;
-    data.createStudentWork = document.getElementById('sub-create-student-work')?.checked === true;
     data.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
-
-    // Preserve any generated packet already in memory
-    if (subDays[dateStr]?.generatedPacket && !data.generatedPacket) {
-        data.generatedPacket = subDays[dateStr].generatedPacket;
-    }
 
     // Strip undefined values — Firestore rejects them and silently skips the write
     const cleanData = JSON.parse(JSON.stringify(data, (k, v) => v === undefined ? null : v));
@@ -13028,6 +13024,7 @@ async function saveSubDay(opts) {
         // so the toggle always persists even if other fields fail validation
         await yearPath.collection('subDays').doc(dateStr).set(cleanData, { merge: true });
         subDays[dateStr] = { ...subDays[dateStr], ...cleanData };
+        modal.dataset.dirty = '';
         renderCalendar();
         if (typeof renderDayView === 'function' && !document.getElementById('day-view')?.classList.contains('hidden')) renderDayView();
         if (!quiet) showToast(opts && opts.toggled
@@ -13253,9 +13250,6 @@ ${data['sub-extras'] ? `<div class="print-section">
   <span>Thank you for being here today! 💙</span>
 </div>
 
-${subDays[dateStr] && subDays[dateStr].generatedPacket
-    ? '<div style="page-break-before:always;"><style>'      + 'table{display:block!important;width:100%!important;}'      + 'tr{display:block!important;width:100%!important;}'      + 'td{display:block!important;width:100%!important;border:none!important;padding:0!important;}'      + '[style*="page-break-before"]{page-break-before:always!important;break-before:page!important;}'      + 'p,li{page-break-inside:avoid;}'      + '</style>' + subDays[dateStr].generatedPacket + '</div>'
-    : ''}
 
 </body>
 </html>`;
@@ -13274,147 +13268,6 @@ ${subDays[dateStr] && subDays[dateStr].generatedPacket
             win.print();
         }, 400);
     };
-}
-
-// Build the AI Student Work Packet for a sub day: one activity set per
-// scheduled class, using that class's lesson (if any) and typed sub
-// instructions as context. Streams into the modal's status area, then
-// saves the finished HTML onto subDays[dateStr].generatedPacket so it's
-// available both from "Print Student Work" and embedded in the full plan.
-async function generateSubDayStudentPacket(dateStr) {
-    const statusEl = document.getElementById('sub-ai-status');
-    const stickyEl = document.getElementById('sub-ai-sticky-status');
-    const genBtn   = document.getElementById('sub-ai-generate-btn');
-    const styleEl  = document.getElementById('sub-ai-style');
-    const instrEl  = document.getElementById('sub-ai-instructions');
-    const printWorkBtn = document.getElementById('sub-day-student-work-btn');
-
-    if (!hasEffectiveAiKey()) { showToast('Add your AI API key in Settings first.'); return; }
-
-    const date = new Date(dateStr + 'T00:00:00');
-    const dayNames = ['sun','mon','tue','wed','thu','fri','sat'];
-    const dayKey = dayNames[date.getDay()];
-    const dayClasses = classes.filter(cls => cls.schedule && cls.schedule[dayKey] && isClassActiveOnDate(cls, dateStr) && cls.type !== 'activity');
-    const classSlots = getSortedClassSlots(dayClasses, dayKey);
-    const dayLessons = lessons.filter(l => l.date === dateStr);
-    const formData = collectSubDayData(dateStr);
-
-    if (classSlots.length === 0) {
-        showToast('No classes scheduled this day — nothing to generate a packet for.');
-        return;
-    }
-
-    const styleLabel = {
-        worksheets: 'worksheets and practice problems',
-        activities: 'hands-on activities and games',
-        mixed: '2 activities per class period, each roughly one full printed page',
-        reading: 'a short reading passage with comprehension questions'
-    }[styleEl?.value] || '2 activities per class period';
-    const grade = userProfile.grade ? formatGrade(userProfile.grade) : '1st Grade';
-    const specialInstructions = instrEl?.value.trim() || '';
-
-    // v6.2.0: honour the per-class "📝 AI work" checkbox -- unchecked
-    // classes used to get activities anyway.
-    const includedSlots = classSlots.filter(({ cls, slotIndex: si, slotCount }) => {
-        const slotKey = slotCount > 1 ? `${cls.id}_${si}` : cls.id;
-        return formData.classInstructions?.[slotKey]?.included !== false;
-    });
-    if (includedSlots.length === 0) {
-        showToast('Every class is unchecked for AI work — tick at least one "📝 AI work" box.');
-        return;
-    }
-
-    const classContext = includedSlots.map(({ cls, slotIndex: si, slotCount }) => {
-        const slotKey = slotCount > 1 ? `${cls.id}_${si}` : cls.id;
-        const lesson = findLessonForSlot(dayLessons, cls.id, si);
-        const ci = formData.classInstructions?.[slotKey] || {};
-        return `Class: ${cls.name}${cls.subject ? ' (' + cls.subject + ')' : ''}\n`
-            + (lesson?.title ? `Today's lesson: ${lesson.title}\n` : '')
-            + (lesson?.notes ? `Lesson notes: ${lesson.notes}\n` : '')
-            + (ci.instructions ? `Sub instructions: ${ci.instructions}\n` : '');
-    }).join('\n');
-
-    const prompt = `Create a printable student work packet for a substitute-teacher day in a ${grade} classroom.\n`
-        + `For EACH class period below, create ${styleLabel} that a substitute can hand out with no special prep.\n`
-        + `Give every class period exactly 2 activities.\n`
-        + (specialInstructions ? `Special instructions: ${specialInstructions}\n` : '')
-        + `\nClasses today:\n${classContext}\n`
-        + `\nFormat the output as clean semantic HTML fragments only (use <h2> for each class name, <h3> for each activity title, <p>, <ol>/<li>, and simple <table> where useful). `
-        + `Do not include <html>, <head>, or <body> tags, and do not use Markdown syntax (no **, ##, backticks). `
-        + `Start each class's section with <div style="page-break-before:always;"> and close it with </div> so each class prints on its own page. `
-        + `Write for a ${grade} reading level — clear, simple, age-appropriate language and short instructions.`;
-
-    statusEl.innerHTML = '🤖 Generating student packet…';
-    stickyEl.textContent = '🤖 Generating student packet…';
-    stickyEl.classList.remove('hidden');
-    if (genBtn) genBtn.disabled = true;
-    if (printWorkBtn) printWorkBtn.disabled = true;
-
-    try {
-        let full = '';
-        await callAITextStream({
-            prompt,
-            tier: 'quality',
-            maxTokens: 16000,
-            onDelta: (_chunk, fullText) => {
-                full = fullText;
-                statusEl.innerHTML = `🤖 Generating… (${fullText.length.toLocaleString()} characters so far)`;
-            }
-        });
-
-        subDays[dateStr] = { ...subDays[dateStr], generatedPacket: full, aiStyle: styleEl?.value || null, aiInstructions: specialInstructions };
-        // v6.2.0: write the packet to the date it was generated FOR. Before,
-        // saveSubDay() read whichever date the modal showed ~2 minutes later,
-        // so opening another day meanwhile lost the packet.
-        await getYearPath().collection('subDays').doc(dateStr).set({
-            date: dateStr,
-            generatedPacket: full,
-            aiStyle: styleEl?.value || null,
-            aiInstructions: specialInstructions,
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
-        const subModal = document.getElementById('sub-day-modal');
-        if (subModal && subModal.dataset.date === dateStr && !subModal.classList.contains('hidden')) {
-            await saveSubDay();   // also keep the rest of the open form
-        }
-        updatePacketBadge(dateStr);
-        statusEl.innerHTML = '✅ Student packet ready!';
-        showToast('✅ Student packet generated and saved!');
-    } catch (e) {
-        console.error('generateSubDayStudentPacket:', e);
-        statusEl.innerHTML = '❌ ' + (e.message || 'Generation failed.');
-        showToast('❌ Could not generate packet: ' + (e.message || 'Unknown error'));
-    } finally {
-        stickyEl.classList.add('hidden');
-        if (genBtn) genBtn.disabled = false;
-        if (printWorkBtn) printWorkBtn.disabled = false;
-    }
-}
-
-// Print just the AI-generated student packet (no sub instructions), for
-// running copies to hand to students.
-function printSubDayStudentWork(dateStr) {
-    const packet = subDays[dateStr]?.generatedPacket;
-    if (!packet) {
-        showToast('No student packet generated yet — click "✨ Generate Student Packet" first.');
-        return;
-    }
-    const date = new Date(dateStr + 'T00:00:00');
-    const formatted = date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-    const win = openPrintWindow();
-    win.document.write(preparePrintDoc(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-        <title>Student Work Packet — ${formatted}</title>
-        <style>
-        * { box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #222; margin: 0; }
-        table { display:block!important; width:100%!important; }
-        tr { display:block!important; width:100%!important; }
-        td { display:block!important; width:100%!important; border:none!important; padding:0!important; }
-        [style*="page-break-before"] { page-break-before: always !important; break-before: page !important; }
-        p, li { page-break-inside: avoid; }
-        </style></head><body>${packet}</body></html>`, {v:'0.4in',h:'0.3in'}));
-    win.document.close();
-    win.onload = () => { setTimeout(() => { win.focus(); win.print(); }, 400); };
 }
 
 
@@ -13517,7 +13370,7 @@ async function persistPickedPages(scope, storeKey) {
         subDays[dateStr] = { ...subDays[dateStr], workPicks };
     } catch (e) {
         console.warn('persistPickedPages:', e.message);
-        showToast('⚠️ Pages picked, but not saved to your account yet — press Save.');
+        showToast('⚠️ Pages picked, but not saved to your account yet — click Print Plan to save.');
     }
 }
 
@@ -13533,7 +13386,9 @@ async function openPagePicker(slotKey, scope = 'sub', dow = null) {
     const subject = cls?.subject || '';
     const clsName = cls?.name || 'Class';
 
-    _ppCtx = { scope, slotKey, storeKey, resourceId: null, numPages: 0, selected: new Set() };
+    // v6.10.0: stop the previous session's preview drawing and free its PDF.
+    try { _ppCtx.observer?.disconnect(); _ppCtx.pdf?.destroy(); } catch (_) {}
+    _ppCtx = { scope, slotKey, storeKey, resourceId: null, numPages: 0, selected: new Set(), runId: (_ppCtx.runId || 0) + 1 };
     document.getElementById('pp-title').textContent = '📄 Pick Pages · ' + clsName;
 
     const sel = document.getElementById('pp-resource-select');
@@ -13564,10 +13419,28 @@ async function openPagePicker(slotKey, scope = 'sub', dow = null) {
     updatePpCount();
 }
 
-// Render a chosen resource's pages as tappable thumbnails
+// v6.10.0: PDF bytes are kept for the session so re-opening the picker or
+// downloading the pages PDF doesn't download the same file again.
+const _pdfBytesCache = new Map();   // resourceId -> ArrayBuffer
+async function getPdfBytes(doc) {
+    if (_pdfBytesCache.has(doc.id)) return _pdfBytesCache.get(doc.id);
+    const resp = await fetch(doc.storageUrl);
+    if (!resp.ok) throw new Error('could not fetch file');
+    const buf = await resp.arrayBuffer();
+    if (_pdfBytesCache.size >= 6) _pdfBytesCache.delete(_pdfBytesCache.keys().next().value);
+    _pdfBytesCache.set(doc.id, buf);
+    return buf;
+}
+
+// Show a chosen resource's pages as tappable tiles. v6.10.0: every page's
+// tile appears at once (numbered and selectable right away); the preview
+// image is drawn only when the tile scrolls into view, one at a time.
 async function pagePickerLoadResource(resourceId) {
     await Promise.all([ensureLib('pdfjs')]);
-    if (!resourceId) { document.getElementById('pp-thumbs').innerHTML = ''; return; }
+    const thumbs = document.getElementById('pp-thumbs');
+    const status = document.getElementById('pp-status');
+    try { _ppCtx.observer?.disconnect(); } catch (_) {}
+    if (!resourceId) { thumbs.innerHTML = ''; return; }
     const doc = curriculumDocs.find(d => d.id === resourceId);
     if (!doc || !doc.storageUrl) { showToast('That resource has no viewable file.'); return; }
     _ppCtx.resourceId = resourceId;
@@ -13576,57 +13449,81 @@ async function pagePickerLoadResource(resourceId) {
     const existing = (_ppStore(_ppCtx.scope)[_ppCtx.storeKey] || []).find(s => s.resourceId === resourceId);
     _ppCtx.selected = new Set(existing?.pages || []);
 
-    const thumbs = document.getElementById('pp-thumbs');
-    const status = document.getElementById('pp-status');
     thumbs.innerHTML = '';
-    status.textContent = 'Loading pages…';
+    status.textContent = 'Opening PDF…';
+    const runId = (_ppCtx.runId = (_ppCtx.runId || 0) + 1);
 
     try {
         if (typeof initPdfWorker === 'function') initPdfWorker();
-        const resp = await fetch(doc.storageUrl);
-        if (!resp.ok) throw new Error('could not fetch file');
-        const buf = await resp.arrayBuffer();
-        // v6.5.0: free the previous PDF, and stop an older render loop if the
-        // teacher switched resources mid-way (thumbnails used to mix).
-        const runId = (_ppCtx.runId = (_ppCtx.runId || 0) + 1);
+        const buf = await getPdfBytes(doc);
+        if (runId !== _ppCtx.runId) return;
         try { _ppCtx.pdf?.destroy(); } catch (_) {}
-        const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buf), isEvalSupported: false }).promise;
+        const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buf.slice(0)), isEvalSupported: false }).promise;
         if (runId !== _ppCtx.runId) { pdf.destroy(); return; }
         _ppCtx.pdf = pdf;
         _ppCtx.numPages = pdf.numPages;
-        const cap = Math.min(pdf.numPages, 300); // safety ceiling only
-        for (let p = 1; p <= cap; p++) {
-            if (runId !== _ppCtx.runId) return;
-            status.textContent = `Rendering pages… ${p} / ${cap}`;
-            try {
-                const page = await pdf.getPage(p);
-                const viewport = page.getViewport({ scale: 0.5 });
-                const canvas = document.createElement('canvas');
-                canvas.width = viewport.width;
-                canvas.height = viewport.height;
-                await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-                const url = canvas.toDataURL('image/jpeg', 0.7);
-                const div = document.createElement('div');
-                div.className = 'pp-thumb' + (_ppCtx.selected.has(p) ? ' selected' : '');
-                div.dataset.page = p;
-                div.innerHTML = `<img src="${url}" alt="page ${p}"><div class="pp-thumb-num">${p}</div><div class="pp-thumb-check">✓</div>`;
-                div.onclick = () => togglePpThumb(div);
-                thumbs.appendChild(div);
-            } catch (pageErr) {
-                // A single bad page must NOT stop the rest — add a selectable placeholder.
-                console.warn('page render failed:', p, pageErr.message);
-                const div = document.createElement('div');
-                div.className = 'pp-thumb pp-thumb-failed' + (_ppCtx.selected.has(p) ? ' selected' : '');
-                div.dataset.page = p;
-                div.innerHTML = `<div class="pp-thumb-fail">Page ${p}<span>preview unavailable</span></div><div class="pp-thumb-num">${p}</div><div class="pp-thumb-check">✓</div>`;
-                div.onclick = () => togglePpThumb(div);
-                thumbs.appendChild(div);
-            }
+
+        // Page shape from page 1, so empty tiles are the right size.
+        let ratio = '8.5 / 11';
+        try { const v = (await pdf.getPage(1)).getViewport({ scale: 1 }); ratio = `${v.width} / ${v.height}`; } catch (_) {}
+
+        const frag = document.createDocumentFragment();
+        for (let p = 1; p <= pdf.numPages; p++) {
+            const div = document.createElement('div');
+            div.className = 'pp-thumb pp-thumb-pending' + (_ppCtx.selected.has(p) ? ' selected' : '');
+            div.dataset.page = p;
+            div.style.aspectRatio = ratio;
+            div.innerHTML = `<div class="pp-thumb-num">${p}</div><div class="pp-thumb-check">✓</div>`;
+            div.onclick = () => togglePpThumb(div);
+            frag.appendChild(div);
         }
-        status.textContent = pdf.numPages > cap
-            ? `Showing first ${cap} of ${pdf.numPages} pages. Tap pages to select.`
-            : `${pdf.numPages} page${pdf.numPages !== 1 ? 's' : ''}. Tap pages to select.`;
+        thumbs.appendChild(frag);
+        status.textContent = `${pdf.numPages} page${pdf.numPages !== 1 ? 's' : ''}. Tap pages to select.`;
         updatePpCount();
+
+        // Draw previews as tiles come into view, one at a time.
+        const queue = [];
+        let busy = false;
+        const pump = async () => {
+            if (busy) return;
+            busy = true;
+            while (queue.length && runId === _ppCtx.runId) {
+                const div = queue.shift();
+                const p = parseInt(div.dataset.page, 10);
+                try {
+                    const page = await pdf.getPage(p);
+                    const viewport = page.getViewport({ scale: 0.5 });
+                    const canvas = document.createElement('canvas');
+                    canvas.width = viewport.width;
+                    canvas.height = viewport.height;
+                    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+                    if (runId !== _ppCtx.runId) break;
+                    const img = document.createElement('img');
+                    img.alt = 'page ' + p;
+                    img.src = canvas.toDataURL('image/jpeg', 0.7);
+                    div.prepend(img);
+                    div.classList.remove('pp-thumb-pending');
+                    div.style.aspectRatio = '';
+                } catch (pageErr) {
+                    console.warn('page render failed:', p, pageErr.message);
+                    div.classList.remove('pp-thumb-pending');
+                    div.classList.add('pp-thumb-failed');
+                    div.insertAdjacentHTML('afterbegin', `<div class="pp-thumb-fail">Page ${p}<span>preview unavailable</span></div>`);
+                }
+            }
+            busy = false;
+        };
+        const root = document.querySelector('#page-picker-modal .pp-body');
+        const obs = new IntersectionObserver(entries => {
+            entries.forEach(e => {
+                if (!e.isIntersecting) return;
+                obs.unobserve(e.target);
+                queue.push(e.target);
+            });
+            pump();
+        }, { root, rootMargin: '400px 0px' });
+        _ppCtx.observer = obs;
+        thumbs.querySelectorAll('.pp-thumb').forEach(d => obs.observe(d));
     } catch (e) {
         console.error('pagePickerLoadResource:', e);
         status.textContent = '❌ Could not load this PDF (' + (e.message || 'error') + ').';
@@ -13714,7 +13611,7 @@ async function printSubDayPickedPages(dateStr) {
         const sel = subWorkPages[slotKey] || [];
         if (sel.length) groups.push({ className: cls.name, sel });
     });
-    printPickedPagesPacket(groups, `Student Work — ${date.toLocaleDateString('en-US')}`);
+    printPickedPagesPacket(groups, `Student Work ${dateStr}`);
 }
 
 // Print arbitrary HTML via a hidden iframe (fallback when window.open is
@@ -13754,65 +13651,72 @@ function printHtmlViaIframe(html) {
     setTimeout(() => { try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch (e) {} }, 600);
 }
 
-// Shared: render hand-picked pages (groups = [{className, sel:[{resourceId,pages}]}]) to a print window.
+// Shared: build ONE PDF of the hand-picked pages (groups = [{className,
+// sel:[{resourceId,pages}]}]) and download it. v6.10.0: the real pages are
+// copied straight out of the original PDFs (sharp, and fast) instead of being
+// redrawn as pictures and sent to a print window. A PDF that can't be copied
+// (damaged or locked) falls back to picture pages for just that file.
 async function printPickedPagesPacket(groups, title) {
     if (!groups || groups.length === 0) {
         showToast('No pages picked yet — use “➕ Pick pages” under a class.');
         return;
     }
-    const win = window.open('', '_blank');
-    if (win) {
-        win.document.write('<!DOCTYPE html><body style="font-family:Segoe UI,Arial,sans-serif;padding:48px;color:#666;">📄 Rendering your selected pages…</body>');
-        win.document.close();
-    }
     showLoading();
     const lt = document.querySelector('.loading-text');
-    if (lt) lt.textContent = 'Rendering selected pages…';
-
+    if (lt) lt.textContent = 'Building your pages PDF…';
     try {
-        let body = '';
+        await ensureLib('pdflib');
+        const { PDFDocument } = PDFLib;
+        const out = await PDFDocument.create();
+        out.setTitle(title);
+        let added = 0, skipped = 0;
         for (const g of groups) {
             for (const s of g.sel) {
                 const doc = curriculumDocs.find(d => d.id === s.resourceId);
-                if (!doc || !doc.storageUrl) continue;
-                const imgs = await renderPdfPagesByNumber(doc.storageUrl, s.pages);
-                imgs.forEach((src, i) => {
-                    body += `<div class="pk-page"><img src="${src}"></div>`;
-                });
+                if (!doc || !doc.storageUrl) { skipped += (s.pages || []).length; continue; }
+                let buf;
+                try { buf = await getPdfBytes(doc); } catch (e) { skipped += (s.pages || []).length; continue; }
+                try {
+                    const src = await PDFDocument.load(buf.slice(0), { ignoreEncryption: true });
+                    const idx = (s.pages || []).filter(p => p >= 1 && p <= src.getPageCount()).map(p => p - 1);
+                    const copied = await out.copyPages(src, idx);
+                    copied.forEach(pg => out.addPage(pg));
+                    added += copied.length;
+                    skipped += (s.pages || []).length - idx.length;
+                } catch (copyErr) {
+                    console.warn('copyPages failed, using picture pages for', doc.name, copyErr.message);
+                    const imgs = await renderPdfPagesByNumber(doc.storageUrl, s.pages || []);
+                    for (const dataUrl of imgs) {
+                        const jpg = await out.embedJpg(dataUrl);
+                        const page = out.addPage([612, 792]);   // US Letter
+                        const sc = Math.min(612 / jpg.width, 792 / jpg.height);
+                        const w = jpg.width * sc, h = jpg.height * sc;
+                        page.drawImage(jpg, { x: (612 - w) / 2, y: (792 - h) / 2, width: w, height: h });
+                        added++;
+                    }
+                    skipped += (s.pages || []).length - imgs.length;
+                }
             }
         }
-        if (!body) { showToast('Could not render the selected pages.'); if (win) win.close(); return; }
-        const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title>
-        <style>
-          * { box-sizing:border-box; margin:0; padding:0; }
-          html, body { margin:0; padding:0; }
-          @page { margin:0; }
-          .pk-page { page-break-after:always; page-break-inside:avoid; text-align:center; line-height:0; }
-          .pk-page:last-child { page-break-after:auto; }
-          /* Fit each worksheet within a single page in BOTH dimensions so it
-             never overflows onto a second (near-blank) page. */
-          .pk-page img { display:inline-block; width:auto; height:auto; max-width:100%; max-height:100vh; vertical-align:top; }
-        </style></head><body>${body}</body></html>`;
-        if (win) {
-            win.document.open();
-            win.document.write(html);
-            win.document.close();
-            // Images are inline base64, so don't wait on onload (it may have
-            // already fired for the placeholder doc) — print after a short beat.
-            setTimeout(() => { try { win.focus(); win.print(); } catch (e) {} }, 500);
-        } else {
-            // Pop-up blocked (common in the desktop app) — print via hidden iframe.
-            printHtmlViaIframe(html);
-        }
+        if (!added) { showToast('Could not get any of the picked pages from their PDFs.'); return; }
+        const bytes = await out.save();
+        const blob = new Blob([bytes], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = (title || 'Student Work').replace(/[\\/:*?"<>|]+/g, '-').trim() + '.pdf';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+        showToast(`⬇️ Downloaded ${added} page${added !== 1 ? 's' : ''}` + (skipped ? ` (${skipped} couldn't be found)` : ''));
     } catch (e) {
         console.error('printPickedPagesPacket:', e);
-        showToast('❌ Could not build the packet: ' + (e.message || 'error'));
-        if (win) win.close();
+        showToast('❌ Could not build the pages PDF: ' + (e.message || 'error'));
     } finally {
         hideLoading();
     }
 }
-
 
 // ============================================================
 // ANCHOR CHARTS  (Week view)
@@ -21034,8 +20938,7 @@ const HELP_SECTIONS = [
         steps: [
             '<strong>📷 Scan &amp; Import</strong> — snap a photo of a schedule, lesson plan, or district calendar and Plany turns it into real classes and events.',
             '<strong>📝 Quiz &amp; Rubric Generator</strong> — create printable quizzes and rubrics on any topic in seconds.',
-            '<strong>📰 Newsletters</strong> — from the Year or Week view, tap <strong>Newsletter</strong> to generate a parent-friendly summary of what’s coming up.',
-            '<strong>Student Work Packets</strong> — build a packet of tailored student work from your lessons and curriculum, printable straight from the Sub Day or Day view.'
+            '<strong>📰 Newsletters</strong> — from the Year or Week view, tap <strong>Newsletter</strong> to generate a parent-friendly summary of what’s coming up.'
         ],
         tip: { type: 'tip', text: 'All of these need your AI key set up first — see “Turn On the AI Features” above.' }
     },
